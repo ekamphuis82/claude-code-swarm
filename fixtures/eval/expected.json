@@ -1,0 +1,7 @@
+[
+  { "file": "cart.js", "mustMatch": "reduce|initial|empty" },
+  { "file": "dates.js", "mustMatch": "sunday|getday|=== ?7|0-6|never" },
+  { "file": "queue.js", "mustMatch": "splice|skip|mutat|iterat|forEach" },
+  { "file": "retry.js", "mustMatch": "await|reject|escape|bypass" },
+  { "file": "stats.js", "mustMatch": "lexicograph|string|compar|numer|unicode" }
+]

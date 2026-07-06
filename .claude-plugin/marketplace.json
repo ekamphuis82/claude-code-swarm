@@ -1,0 +1,12 @@
+{
+  "name": "claude-code-swarm",
+  "description": "Local marketplace for the codeswarm plugin: multi-agent orchestration for Claude Code.",
+  "owner": { "name": "Erik Kamphuis" },
+  "plugins": [
+    {
+      "name": "codeswarm",
+      "source": "./",
+      "description": "Multi-agent swarm — /swarm entrypoint, deterministic workflow scripts, stack-agnostic process agents."
+    }
+  ]
+}

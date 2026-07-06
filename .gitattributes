@@ -1,0 +1,7 @@
+# Force LF on scripts. The Workflow tool reads workflows/*.js via scriptPath and shows
+# them in an approval dialog that rejects a raw CR (\r) as a hidden control character,
+# so a CRLF checkout (default on Windows) makes every scriptPath launch fail. Also keeps
+# hook scripts and the POSIX test harness LF regardless of platform.
+*.js   text eol=lf
+*.mjs  text eol=lf
+*.sh   text eol=lf

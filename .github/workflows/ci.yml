@@ -1,0 +1,49 @@
+name: checks
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 'lts/*'
+
+      - name: Manifests parse
+        run: node -e "JSON.parse(require('fs').readFileSync('.claude-plugin/plugin.json','utf8')); JSON.parse(require('fs').readFileSync('.claude-plugin/marketplace.json','utf8')); JSON.parse(require('fs').readFileSync('hooks/hooks.json','utf8')); console.log('MANIFESTS_OK')"
+
+      - name: Syntax check hooks + tools + runner (workflow scripts are harness modules — covered by workflows/syntax.test.mjs in the test step)
+        run: |
+          for f in hooks/*.js tools/*.js runner/*.js; do node --check "$f"; done
+          echo NODE_CHECK_OK
+
+      - name: Workflow + tools + runner unit tests
+        run: node --test workflows/*.test.mjs tools/*.test.mjs runner/*.test.mjs
+
+      - name: Hook pipe tests
+        run: sh hooks/hooks.test.sh
+
+      - name: Frontmatter lint (skills + agents)
+        run: |
+          fail=0
+          for f in skills/*/SKILL.md; do
+            dir=$(basename "$(dirname "$f")")
+            name=$(sed -n 's/^name: *//p' "$f" | head -1)
+            [ "$name" = "$dir" ] || { echo "FRONTMATTER MISMATCH: $f (name '$name' != dir '$dir')"; fail=1; }
+          done
+          for f in agents/*.md; do
+            base=$(basename "$f" .md)
+            name=$(sed -n 's/^name: *//p' "$f" | head -1)
+            [ "$name" = "$base" ] || { echo "FRONTMATTER MISMATCH: $f (name '$name' != file '$base')"; fail=1; }
+          done
+          [ $fail -eq 0 ] && echo FRONTMATTER_OK
+          exit $fail
+
+      # No sanitize step here on purpose: the term list itself is private, so it
+      # cannot live in a public workflow file. The sanitize check runs in the
+      # local dev gate instead (see CLAUDE.md), reading the gitignored
+      # .sanitize-terms file — absent on CI and forks, so nothing leaks.

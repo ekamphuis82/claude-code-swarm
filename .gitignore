@@ -1,0 +1,12 @@
+*.log
+.DS_Store
+Thumbs.db
+.superpowers/
+.idea/
+
+# local sanitize term list — never commit
+.sanitize-terms
+
+# onboard-generated user artifacts — upstream never ships my-* (see CONTRIBUTING)
+agents/my-*
+skills/my-*/

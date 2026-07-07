@@ -204,4 +204,39 @@ test('swarm-onboard.js: generate mode enforces the dictated target path', async 
   // the fake writer claims path "x" which never equals the dictated target,
   // so nothing may be counted as generated (trust-nothing path check)
   assert.equal(r.result.generated.length, 0)
+  // a proposal without origin gets the stricter evidence-based treatment
+  assert.equal(r.result.origin, 'repo')
+  assert.ok(!r.calls.some(c => c.prompt.includes('STACK-DEFAULT artifact')), 'no provenance stamp on repo-origin writers')
+})
+
+test('swarm-onboard.js: stacks propose (stack-default fallback) skips inventory agents and stamps origin', async () => {
+  const r = await run('swarm-onboard.js', { pluginDir: '/p', stacks: [{ name: 'laravel', version: '11', notes: 'strict types' }] })
+  assertInvariants('swarm-onboard.js', r)
+  assert.equal(r.result.mode, 'propose')
+  assert.equal(r.result.origin, 'stack-default')
+  assert.equal(r.result.proposal.origin, 'stack-default', 'origin must travel INSIDE the proposal — generate mode reads it from there')
+  assert.ok(!r.calls.some(c => c.opts.label.startsWith('inventory:')), 'stacks mode must not dispatch inventory agents')
+  assert.ok(r.calls.some(c => c.opts.label.startsWith('synthesize-stacks')), 'stack-default synthesis must run')
+  assert.ok(Array.isArray(r.result.plannedFiles))
+})
+
+test('swarm-onboard.js: repos AND stacks together is a hard error (no mixed provenance)', async () => {
+  await assert.rejects(
+    run('swarm-onboard.js', { pluginDir: '/p', repos: [{ name: 'r', path: '/r' }], stacks: [{ name: 's' }] }),
+    /never both/)
+})
+
+test('swarm-onboard.js: generate stamps the stack-default provenance into every writer prompt', async () => {
+  const proposal = {
+    origin: 'stack-default',
+    agents: [{ name: 'alpha', description: 'd', scope: 's', evidence: 'stack-default: laravel@11', skills: [], rules: [] }],
+    skills: [{ name: 'beta', description: 'd', scope: 's', rules: [{ rule: 'r', scopeTag: 'universal', evidence: 'stack-default: laravel@11' }] }],
+  }
+  const r = await run('swarm-onboard.js', { pluginDir: '/p', mode: 'generate', proposal })
+  assertInvariants('swarm-onboard.js', r)
+  assert.equal(r.result.origin, 'stack-default')
+  const writers = r.calls.filter(c => c.opts.label.startsWith('gen:'))
+  assert.ok(writers.length >= 2, 'both writers must dispatch')
+  assert.ok(writers.every(c => c.prompt.includes('Stack-default (generated without a repo scan)')),
+    'every writer prompt must carry the provenance instruction')
 })

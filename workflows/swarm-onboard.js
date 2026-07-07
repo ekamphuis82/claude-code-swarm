@@ -1,8 +1,8 @@
 export const meta = {
   name: 'swarm-onboard',
-  description: 'Onboarding generator: propose mode (default) inventories the user repos and returns a specialist roster and convention-skill proposal without writing anything; generate mode writes an approved proposal into the plugin clone as my- prefixed stack agents and convention skills [internal: launched by swarm-director]',
+  description: 'Onboarding generator: propose mode (default) inventories the user repos — or, fallback when there is nothing to scan, composes a stack-default roster from declared stacks — and returns a specialist roster and convention-skill proposal without writing anything; generate mode writes an approved proposal into the plugin clone as my- prefixed stack agents and convention skills [internal: launched by swarm-director]',
   phases: [
-    { title: 'Scan', detail: 'shipped-name listing; propose mode adds one inventory agent per repo' },
+    { title: 'Scan', detail: 'shipped-name listing; repo propose adds one inventory agent per repo' },
     { title: 'Synthesize', detail: 'roster + convention-skill proposal (propose mode only)' },
     { title: 'Generate', detail: 'one writer per approved artifact (generate mode only)' },
   ],
@@ -12,7 +12,15 @@ const A = typeof args === 'string' ? JSON.parse(args) : (args ?? {})
 const MODE = A.mode ?? 'propose'
 if (MODE !== 'propose' && MODE !== 'generate') throw new Error('args.mode must be "propose" (default) or "generate"')
 if (!A.pluginDir) throw new Error('args.pluginDir (absolute path to the plugin clone — generation target) is required')
-if (MODE === 'propose' && (!Array.isArray(A.repos) || !A.repos.length)) throw new Error('propose mode: args.repos [{name, path}] is required')
+const hasRepos = Array.isArray(A.repos) && A.repos.length > 0
+const hasStacks = Array.isArray(A.stacks) && A.stacks.length > 0
+if (MODE === 'propose') {
+  // one run is either evidence-based (repo scan) or stack-default — never both:
+  // mixed provenance would blur which rules carry code evidence
+  if (hasRepos && hasStacks) throw new Error('propose mode: pass repos OR stacks, never both — a run is either evidence-based (repo scan) or stack-default; mixed needs = two onboard runs')
+  if (!hasRepos && !hasStacks) throw new Error('propose mode: args.repos [{name, path}] (repo scan — strongly recommended) or args.stacks [{name, version?, notes?}] (stack-default fallback) is required')
+  if (hasStacks) for (const s of A.stacks) { if (typeof s?.name !== 'string' || !s.name.trim()) throw new Error('every stacks entry needs a non-empty name') }
+}
 if (MODE === 'generate' && (!A.proposal || typeof A.proposal !== 'object' || Array.isArray(A.proposal))) throw new Error('generate mode: args.proposal (the approved proposal object returned by propose mode: {agents, skills}) is required')
 // quiet-by-default invariant (CONTRIBUTING)
 const QUIET = A.quiet === false ? '' : '\nOUTPUT DISCIPLINE (silent mode): no narration between tool calls; never print file dumps into your transcript (write files with your tools, do not echo them); read only what you need; deliver ONLY the structured output, every string field terse (facts, file:line refs).'
@@ -32,6 +40,18 @@ const safeName = n => String(n ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '-').
 // my- contract: upstream never ships my-*, so generated artifacts never collide
 // with plugin updates. Idempotent (no my-my-).
 const myName = n => { const s = safeName(n); return !s || s.startsWith('my-') ? s : `my-${s}` }
+
+// stack-default provenance: ONE exact marker string, stamped deterministically
+// into generated artifacts (never trusted as free text from the proposal).
+// swarm-drift.js skips skills carrying it — dimension-sync.test.mjs guards the
+// two copies; edit both together.
+const STACK_DEFAULT_MARK = 'Stack-default (generated without a repo scan)'
+const STACK_DEFAULT_NOTE = `${STACK_DEFAULT_MARK} — re-run onboard against a real repo to upgrade.`
+
+const plannedFiles = p => [
+  ...p.agents.map(a => `${A.pluginDir}/agents/${a.name}.md`),
+  ...p.skills.map(s => `${A.pluginDir}/skills/${s.name}/SKILL.md`),
+]
 
 const EVIDENCED = (nameKey, extra = {}) => ({
   type: 'object', required: [nameKey, 'evidence'],
@@ -180,6 +200,42 @@ const normalizeRoster = roster => {
   return { agents, skills: [...skillsByName.values()] }
 }
 
+if (MODE === 'propose' && hasStacks) {
+  // stack-default fallback: nothing to scan, so no inventory agents — the model
+  // composes from its own stack knowledge, era-pinned by the declared versions.
+  // The evidence-based repo scan stays the strongly recommended path (director
+  // states why): this roster routes work, it does not know the user's code.
+  const stacksList = A.stacks.map(s => ({
+    name: String(s.name).trim(),
+    version: s.version != null && String(s.version).trim() ? String(s.version).trim() : 'unspecified',
+    notes: s.notes != null ? String(s.notes) : '',
+  }))
+  phase('Synthesize')
+  const rosterPrompt = `Design the specialist roster and convention-skill set for a multi-agent coding swarm from these DECLARED stacks — no repo was scanned, there is no code evidence.
+(1) Stack agents — FEWER but justified: one specialist per genuinely distinct stack/competence; merge stacks one engineer would plausibly own into one agent; never invent an agent no declared stack justifies. Each: name, one-line description, scope (stacks + work owned), evidence, the convention skills it must load, and 3-6 rules of engagement (idiomatic test framework + typical run command for the declared version, seams to respect).
+(2) Convention skills — ONLY rules that carry real information beyond the model's own defaults: version/era pinning (which idiom generation applies at the declared version), choices the ecosystem genuinely contests at that version, and the user's stated house rules from the notes fields. Do NOT restate framework defaults any competent engineer applies unprompted — such a rule is padding, drop it. Tag every rule's scopeTag with the stack name it is scoped to, or "universal".
+EVIDENCE (hard rule): every evidence field must be exactly "stack-default: <stack>@<version>" naming the declared stack that justifies the entry — never a file:line, never an invented reference.
+NAMING (hard rule): every name lowercase kebab-case (a-z, 0-9, hyphens only — no dots, no spaces); the script prefixes every generated name with "my-" itself, do not add it. Never reuse these reserved names: ${[...reserved].sort().join(', ')}.
+Declared stacks:${FENCE('declared stacks', JSON.stringify(stacksList))}${QUIET}`
+  let roster = await agent(rosterPrompt, { label: 'synthesize-stacks', phase: 'Synthesize', schema: ROSTER, effort: 'max', ...TOP })
+  if (!roster) {
+    log('stack-default synthesis null — one retry')
+    roster = await agent(rosterPrompt, { label: 'synthesize-stacks-retry', phase: 'Synthesize', schema: ROSTER, effort: 'max', ...TOP })
+  }
+  lap('synthesize')
+  if (!roster) { log('synthesis agent failed twice'); return { mode: 'propose', origin: 'stack-default', stacks: stacksList, inventories: [], proposal: null, plannedFiles: [], note: 'synthesis agent failed twice — nothing to propose', tokens: tokens() } }
+
+  const proposal = { origin: 'stack-default', ...normalizeRoster(roster) }
+  log(`stack-default proposal: ${proposal.agents.length} agents, ${proposal.skills.length} skills — nothing written`)
+  if (!proposal.agents.length && !proposal.skills.length) return { mode: 'propose', origin: 'stack-default', stacks: stacksList, inventories: [], proposal, plannedFiles: [], note: 'proposal empty after name validation', tokens: tokens() }
+  return {
+    mode: 'propose', origin: 'stack-default', stacks: stacksList, inventories: [], proposal,
+    plannedFiles: plannedFiles(proposal),
+    note: 'nothing written — STACK-DEFAULT proposal (no repo evidence; present for approval WITH that caveat), then re-run with mode "generate" and the (amended) proposal as args.proposal',
+    tokens: tokens(),
+  }
+}
+
 if (MODE === 'propose') {
   const inventories = (await parallel(A.repos.map(r => () =>
     agent(
@@ -190,7 +246,7 @@ if (MODE === 'propose') {
   lap('scan')
   if (inventories.length < A.repos.length) log(`${A.repos.length - inventories.length} inventory agent(s) failed`)
   log(`${inventories.length}/${A.repos.length} repos inventoried`)
-  if (!inventories.length) return { mode: 'propose', inventories: [], proposal: null, plannedFiles: [], note: 'all inventory agents failed — nothing to propose', tokens: tokens() }
+  if (!inventories.length) return { mode: 'propose', origin: 'repo', inventories: [], proposal: null, plannedFiles: [], note: 'all inventory agents failed — nothing to propose', tokens: tokens() }
 
   phase('Synthesize')
   const rosterPrompt = `Design the specialist roster and convention-skill set for a multi-agent coding swarm from these repo inventories.
@@ -204,17 +260,14 @@ Inventories:${FENCE('repo inventories', JSON.stringify(inventories))}${QUIET}`
     roster = await agent(rosterPrompt, { label: 'synthesize-retry', phase: 'Synthesize', schema: ROSTER, effort: 'max', ...TOP })
   }
   lap('synthesize')
-  if (!roster) { log('synthesis agent failed twice'); return { mode: 'propose', inventories, proposal: null, plannedFiles: [], note: 'synthesis agent failed twice — nothing to propose', tokens: tokens() } }
+  if (!roster) { log('synthesis agent failed twice'); return { mode: 'propose', origin: 'repo', inventories, proposal: null, plannedFiles: [], note: 'synthesis agent failed twice — nothing to propose', tokens: tokens() } }
 
-  const proposal = normalizeRoster(roster)
+  const proposal = { origin: 'repo', ...normalizeRoster(roster) }
   log(`proposal: ${proposal.agents.length} agents, ${proposal.skills.length} skills — nothing written`)
-  if (!proposal.agents.length && !proposal.skills.length) return { mode: 'propose', inventories, proposal, plannedFiles: [], note: 'proposal empty after name validation', tokens: tokens() }
+  if (!proposal.agents.length && !proposal.skills.length) return { mode: 'propose', origin: 'repo', inventories, proposal, plannedFiles: [], note: 'proposal empty after name validation', tokens: tokens() }
   return {
-    mode: 'propose', inventories, proposal,
-    plannedFiles: [
-      ...proposal.agents.map(a => `${A.pluginDir}/agents/${a.name}.md`),
-      ...proposal.skills.map(s => `${A.pluginDir}/skills/${s.name}/SKILL.md`),
-    ],
+    mode: 'propose', origin: 'repo', inventories, proposal,
+    plannedFiles: plannedFiles(proposal),
     note: 'nothing written — present the proposal for user approval, then re-run with mode "generate" and the (amended) proposal as args.proposal',
     tokens: tokens(),
   }
@@ -222,7 +275,9 @@ Inventories:${FENCE('repo inventories', JSON.stringify(inventories))}${QUIET}`
 
 // generate — the ONLY mode that writes; runs from an approved proposal, never an
 // unseen synthesis. Names re-normalized defensively (user amendments included).
-const toGen = normalizeRoster(A.proposal)
+// origin is binary and defaults to 'repo': anything but the exact stack-default
+// value gets the stricter (evidence-based) treatment.
+const toGen = { origin: A.proposal?.origin === 'stack-default' ? 'stack-default' : 'repo', ...normalizeRoster(A.proposal) }
 log(`approved proposal: ${toGen.agents.length} agents, ${toGen.skills.length} skills to generate`)
 if (!toGen.agents.length && !toGen.skills.length) return { mode: 'generate', proposal: toGen, generated: [], skipped: [], note: 'proposal empty after name validation — nothing to generate', tokens: tokens() }
 
@@ -232,16 +287,21 @@ const NO_CLOBBER = 'If the target file ALREADY EXISTS, do NOT modify or overwrit
 const ROUTING_HINT = 'Normally dispatched via swarm-director workflows — load codeswarm:swarm-director first instead of spawning this agent ad hoc.'
 // UI-surfaced strings must survive HTML-escaping surfaces; the md body is not one
 const ENCODING = 'Encoding rule, scoped to UI-surfaced strings ONLY — the YAML frontmatter description (and any one-line summary meant for pickers/logs): no raw "<", ">" or "&" there; use Unicode arrows (→) and words ("and") instead. The markdown body is NOT such a surface: write commands, code identifiers and placeholders exactly and verbatim (e.g. npm run lint && npm test, List<String>, spec/<path>) — never paraphrase a command.'
+// provenance stamped deterministically from proposal.origin, like ROUTING_HINT —
+// never trusted as free text inside the proposal body
+const PROVENANCE = toGen.origin === 'stack-default'
+  ? ` This is a STACK-DEFAULT artifact: append this sentence verbatim to the frontmatter description, AND make it the first markdown body line right after the frontmatter: "${STACK_DEFAULT_NOTE}"`
+  : ''
 const writers = [
   ...toGen.agents.map(a => ({
     expected: `${A.pluginDir}/agents/${a.name}.md`,
     label: `gen:agent:${a.name}`,
-    prompt: `Write the stack-agent definition ${A.pluginDir}/agents/${a.name}.md (create with your file tools). ${NO_CLOBBER} First read ${A.pluginDir}/templates/template-stack-agent.md and follow its SHAPE exactly: YAML frontmatter (name/description/tools), MANDATORY skill loads via the Skill tool (codeswarm:repo-entry first, then this agent's convention skills prefixed "codeswarm:"), "read the target repo's CLAUDE.md/AGENTS.md", rules of engagement, and the orchestrator-facing output contract (final message = files changed, tests run + verbatim result line, open risks — no prose padding). OMIT the template's "TEMPLATE — FICTIONAL" blockquote and do NOT copy its fictional stack content — all content comes from this proposal:${FENCE('agent proposal', JSON.stringify(a))}\nFrontmatter name must be exactly "${a.name}" (identical to the file basename). Frontmatter description = the proposal's description with this sentence appended verbatim: "${ROUTING_HINT}". ${ENCODING} Return the absolute path.${QUIET}`,
+    prompt: `Write the stack-agent definition ${A.pluginDir}/agents/${a.name}.md (create with your file tools). ${NO_CLOBBER} First read ${A.pluginDir}/templates/template-stack-agent.md and follow its SHAPE exactly: YAML frontmatter (name/description/tools), MANDATORY skill loads via the Skill tool (codeswarm:repo-entry first, then this agent's convention skills prefixed "codeswarm:"), "read the target repo's CLAUDE.md/AGENTS.md", rules of engagement, and the orchestrator-facing output contract (final message = files changed, tests run + verbatim result line, open risks — no prose padding). OMIT the template's "TEMPLATE — FICTIONAL" blockquote and do NOT copy its fictional stack content — all content comes from this proposal:${FENCE('agent proposal', JSON.stringify(a))}\nFrontmatter name must be exactly "${a.name}" (identical to the file basename). Frontmatter description = the proposal's description with this sentence appended verbatim: "${ROUTING_HINT}". ${ENCODING}${PROVENANCE} Return the absolute path.${QUIET}`,
   })),
   ...toGen.skills.map(s => ({
     expected: `${A.pluginDir}/skills/${s.name}/SKILL.md`,
     label: `gen:skill:${s.name}`,
-    prompt: `Write the convention skill ${A.pluginDir}/skills/${s.name}/SKILL.md (create directories as needed). ${NO_CLOBBER} First read ${A.pluginDir}/templates/template-convention-skill.md and follow its SHAPE exactly: YAML frontmatter (name/description with the "Load before ..." trigger), a scope-tag legend, then the rules grouped in logical sections — EVERY rule carrying its scope tag ([universal] or [repo-name]) and its evidence reference. OMIT the template's "TEMPLATE — FICTIONAL" blockquote and do NOT copy its fictional content — all content comes from this proposal:${FENCE('skill proposal', JSON.stringify(s))}\nFrontmatter name must be exactly "${s.name}" (identical to the skill directory name). ${ENCODING} Return the absolute path.${QUIET}`,
+    prompt: `Write the convention skill ${A.pluginDir}/skills/${s.name}/SKILL.md (create directories as needed). ${NO_CLOBBER} First read ${A.pluginDir}/templates/template-convention-skill.md and follow its SHAPE exactly: YAML frontmatter (name/description with the "Load before ..." trigger), a scope-tag legend, then the rules grouped in logical sections — EVERY rule carrying its scope tag ([universal] or [repo-name]) and its evidence reference. OMIT the template's "TEMPLATE — FICTIONAL" blockquote and do NOT copy its fictional content — all content comes from this proposal:${FENCE('skill proposal', JSON.stringify(s))}\nFrontmatter name must be exactly "${s.name}" (identical to the skill directory name). ${ENCODING}${PROVENANCE} Return the absolute path.${QUIET}`,
   })),
 ]
 // trust nothing the writer claims: returned path must equal the dictated target
@@ -261,4 +321,4 @@ log(`${generated.length}/${writers.length} artifacts written to ${A.pluginDir}${
 
 lap('generate')
 // `proposal` = the normalized roster in BOTH modes' returns, on purpose
-return { mode: 'generate', proposal: toGen, generated, skipped, tokens: tokens() }
+return { mode: 'generate', origin: toGen.origin, proposal: toGen, generated, skipped, tokens: tokens() }

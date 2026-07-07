@@ -69,7 +69,7 @@ phase('Scan')
 const failedRepos = []
 const scans = (await parallel(A.repos.map(r => () =>
   agent(
-    `Compare the convention skills in ${A.skillsDir} (read every SKILL.md; skip swarm-director) against the ACTUAL current code of repo "${r.name}" at ${r.path}. Report ONLY drifts: rules that contradict the code as it is today, versions/paths/class names that changed, rules scoped to the wrong project, and load-bearing NEW conventions in the code that no skill carries (skill: "MISSING"). Evidence file:line per drift. No drift = empty list; do not invent.${QUIET}`,
+    `Compare the convention skills in ${A.skillsDir} (read every SKILL.md; skip swarm-director, and skip any skill whose description contains "Stack-default (generated without a repo scan)" — stack-default skills were generated without a repo and have nothing to drift against) against the ACTUAL current code of repo "${r.name}" at ${r.path}. Report ONLY drifts: rules that contradict the code as it is today, versions/paths/class names that changed, rules scoped to the wrong project, and load-bearing NEW conventions in the code that no skill carries (skill: "MISSING"). Evidence file:line per drift. No drift = empty list; do not invent.${QUIET}`,
     { label: `drift:${r.name}`, phase: 'Scan', schema: DRIFTS, effort: 'low', model: 'sonnet' }
   ).then(x => {
     if (!x) { failedRepos.push(r.name); return null }

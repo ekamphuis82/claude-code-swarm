@@ -1,11 +1,19 @@
-// Guards the single-source architecture-dimension wording.
-// Canonical clause lives in agents/swarm-reviewer.md between the
-// <arch-dimension> HTML-comment markers (inert in the agent prompt).
-// The two runtime copies — swarm-review.js DIMENSION_HINTS.architecture and
-// swarm-build.js full-mode retrospect FOCUS — must contain that clause
-// verbatim (whitespace-normalized; each copy has its own lead-in/trailer,
-// and the md is line-wrapped, so "verbatim" = the normalized clause is a
-// substring of the normalized copy).
+// Guards deliberately duplicated prompt clauses (scripts run without fs, no
+// build step — single-sourcing is impossible; see CLAUDE.md).
+//
+// 1. Architecture-dimension wording. Canonical clause lives in
+// agents/swarm-reviewer.md between the <arch-dimension> HTML-comment markers
+// (inert in the agent prompt). The two runtime copies —
+// swarm-review.js DIMENSION_HINTS.architecture and swarm-build.js full-mode
+// retrospect FOCUS — must contain that clause verbatim
+// (whitespace-normalized; each copy has its own lead-in/trailer, and the md
+// is line-wrapped, so "verbatim" = the normalized clause is a substring of
+// the normalized copy).
+//
+// 2. Stack-default provenance marker. Canonical: STACK_DEFAULT_MARK in
+// swarm-onboard.js (stamped into artifacts generated without a repo scan);
+// swarm-drift.js must carry the exact string in its scan prompt to skip
+// those skills (nothing to drift against).
 // Intentionally NOT synced: skills/repo-entry/SKILL.md "Editing discipline"
 // restates the hygiene/DX rules as imperative editing directives, not as a
 // review-dimension definition — different mode, drift there is acceptable.
@@ -47,4 +55,19 @@ test('swarm-build.js full-mode retrospect FOCUS contains the canonical clause ve
   assert.ok(m, 'full-mode retrospect FOCUS string not found in swarm-build.js')
   assert.ok(norm(m[1]).includes(canonical),
     `swarm-build.js retrospect FOCUS drifted from canonical.\ncanonical: ${canonical}\ncopy: ${norm(m[1])}`)
+})
+
+// --- stack-default provenance marker (onboard -> drift) --------------------
+const onboardSrc = read('swarm-onboard.js')
+const markMatch = onboardSrc.match(/const STACK_DEFAULT_MARK = '([^']+)'/)
+
+test('canonical STACK_DEFAULT_MARK present in swarm-onboard.js', () => {
+  assert.ok(markMatch, 'STACK_DEFAULT_MARK const not found in swarm-onboard.js')
+  assert.ok(markMatch[1].length > 20, `marker suspiciously short: "${markMatch?.[1]}"`)
+})
+
+test('swarm-drift.js scan prompt carries the stack-default marker verbatim', () => {
+  const drift = read('swarm-drift.js')
+  assert.ok(markMatch && drift.includes(markMatch[1]),
+    `swarm-drift.js must contain the exact marker "${markMatch?.[1]}" so stack-default skills are skipped — edit both copies together`)
 })

@@ -171,6 +171,7 @@ written by `/codeswarm:swarm setup`. File missing = first use: offer to run
 `/codeswarm:swarm setup` (or ask its questions inline and write the same
 JSON — see `codeswarm:swarm-setup`), then continue on defaults if declined.
 
+<!-- <config-table> (machine-checked by prose-sync.test.mjs: keys, defaults and the code that reads them) -->
 | Key | Values (default) | Wiring |
 |---|---|---|
 | `alwaysOn` | true/false (false) | hooks-only; nothing for you to wire |
@@ -179,6 +180,7 @@ JSON — see `codeswarm:swarm-setup`), then continue on defaults if declined.
 | `retrospect` | full/light/off (full) | pass to swarm-build.js; see FEATURE step 4 |
 | `rigor` | lite/full (lite) | default verification depth (see Cost model); pass `rigor` to build/review only when it is `full` (lite is the script default) |
 | `issueTracker` | kind gitlab/github/none (none) | output sink, opt-in per run — before filing anything, load `codeswarm:swarm-issues` and follow it. Two rules that hold even unloaded: agents never touch the tracker API, and tokens only ever come from a file path — never the chat, never argv, never an agent prompt |
+<!-- </config-table> -->
 
 A target repo's CLAUDE.md MAY carry a `## swarm` profile: default review
 dimensions, the test-gate command, path exclusions, preferred implementer
@@ -385,6 +387,7 @@ own reporting stays terse regardless (see Reporting).
 Workflow `args` may arrive stringified — the scripts parse defensively;
 still pass real JSON objects.
 
+<!-- <args-table> (machine-checked by prose-sync.test.mjs: one row per workflow script; required args must match the script's own validation throws — keep rows parseable) -->
 | Script | Required args | Optional args |
 |---|---|---|
 | `swarm-build.js` | `repo`, `tasks [{id,title,agentType,brief}]` (`agentType` plugin-qualified — see FEATURE step 1) | `planPath`, `quiet`, `topModel`, `rigor` (pass only when `full` — see Cost model), `retrospect` (full/light/off; applies under full rigor only), per-task `stage` (consecutive tasks sharing a stage run in parallel — only for provably file-disjoint tasks; unset = sequential), per-task `effort` (`low` for mechanical tasks — ALSO skips that task's adversarial review, tester-only; omit to inherit the session effort; `high` for genuinely hard ones) |
@@ -394,6 +397,7 @@ still pass real JSON objects.
 | `swarm-onboard.js` | `pluginDir` (absolute path to the plugin clone — generation target); propose mode also needs `repos [{name,path}]` (scan — strongly recommended) OR `stacks [{name,version?,notes?}]` (stack-default fallback, ONBOARD step 0b; never both); generate mode also needs `proposal` (the user-approved proposal object, `origin` included) | `mode` (`propose` default; `generate`), `quiet`, `topModel` |
 | `swarm-smoke.js` | `fixtureDir` | `quiet`, `expected [{file, mustMatch?}]` — graded fixtures (e.g. `fixtures/eval`): YOU read the fixture's `expected.json` and pass it through (scripts cannot read files); pass = zero `missed`. Graded results also carry `baseline` (the raw pre-verify finder output graded against the same expected set): report the raw-vs-verified delta — it is the A/B evidence of what the verify layer bought. After a PASSING smoke, record `lastSmokeVersion`; after EVERY graded run, log the result — both via `tools/record-eval.js` (see Update canary & eval log) |
 | `swarm-drift.js` | `repos [{name,path}]`, `skillsDir` | `quiet`, `topModel` |
+<!-- </args-table> -->
 
 - Budget: a user token target ("+200k") reaches the scripts ambiently and
   they self-scale — pass nothing.

@@ -76,6 +76,37 @@ const RETRO = {
 
 const GATE = `\nIf the repo ships a project-local gate skill (check ${A.repo}/.claude/skills (example: a project-local code-grade-style gate)), run it via the Skill tool and fold its verdict into suiteResult.`
 
+// <build-helpers> (extracted verbatim by build-helpers.test.mjs — keep pure, no A/log/agent)
+// fix gate: a FAIL suite must be fixed even when the review approved/was skipped
+const needsFixRound = (review, test) => (!!review && review.verdict !== 'APPROVE') || test?.verdict === 'FAIL'
+// everything the fix agent must address — review findings first, tester FAIL last
+const fixFindings = (review, test) => [
+  ...(review?.findings ?? []),
+  ...(test?.verdict === 'FAIL' ? [`tester FAIL: ${test.suiteResult}`] : []),
+].join('\n')
+// the diff on disk is now the fix — its test report supersedes the pre-fix one;
+// files/risks accumulate (deduped): they describe the whole task, not one round
+const mergeImpl = (impl, fix) => ({
+  ...impl,
+  filesChanged: [...new Set([...(impl.filesChanged ?? []), ...(fix.filesChanged ?? [])])],
+  testsRun: fix.testsRun, testOutput: fix.testOutput,
+  risks: [...new Set([...(impl.risks ?? []), ...(fix.risks ?? [])])],
+})
+// consecutive tasks sharing a `stage` run IN PARALLEL — director may only
+// co-stage provably file-disjoint tasks (same working tree); no stage = sequential.
+// CONSECUTIVE on purpose: non-adjacent same-stage tasks stay sequential, so an
+// interleaved dependent task is never overtaken
+const groupStages = tasks => {
+  const stageList = []
+  for (const t of tasks) {
+    const prev = stageList[stageList.length - 1]
+    if (t.stage != null && prev && prev.key === t.stage) prev.tasks.push(t)
+    else stageList.push({ key: t.stage ?? null, tasks: [t] })
+  }
+  return stageList
+}
+// </build-helpers>
+
 async function runTask(t) {
   const brief = `Repo: ${A.repo}\nPlan: ${A.planPath ?? 'brief only'}\nTask ${t.id}: ${t.title}\n${t.brief}\nFollow your standing instructions (mandatory skills, repo CLAUDE.md, TDD: failing test first).${QUIET}`
   let impl = await agent(brief, { label: `impl:${t.id}`, phase: 'Implement', schema: IMPL, agentType: t.agentType, effort: t.effort, ...TOP })
@@ -100,26 +131,16 @@ async function runTask(t) {
     if (!review) { log(`task ${t.id}: reviewer null — one retry`); review = await agent(reviewBrief, { label: `review-retry:${t.id}`, phase: 'Review', schema: REVIEW, agentType: 'codeswarm:swarm-reviewer', effort: 'max', ...TOP }) }
   }
 
-  // one fix round — a FAIL suite must be fixed even when the review approved/was skipped
-  const needsFix = (review && review.verdict !== 'APPROVE') || test?.verdict === 'FAIL'
-  if (needsFix) {
-    const priorFindings = [
-      ...(review?.findings ?? []),
-      ...(test?.verdict === 'FAIL' ? [`tester FAIL: ${test.suiteResult}`] : []),
-    ].join('\n')
+  // one fix round (gate + findings composition: build-helpers above)
+  if (needsFixRound(review, test)) {
+    const priorFindings = fixFindings(review, test)
     let fix = await agent(
       `${brief}\nFIX ROUND — address ALL of the following before returning:\n${priorFindings}`,
       { label: `fix:${t.id}`, phase: 'Implement', schema: IMPL, agentType: t.agentType, effort: t.effort, ...TOP }
     )
     if (!fix) { log(`task ${t.id}: fix agent null — one retry`); fix = await agent(`${brief}\nFIX ROUND — address ALL of the following before returning:\n${priorFindings}`, { label: `fix-retry:${t.id}`, phase: 'Implement', schema: IMPL, agentType: t.agentType, effort: t.effort, ...TOP }) }
     if (fix) {
-      // the diff on disk is now the fix — its report supersedes the pre-fix one
-      impl = {
-        ...impl,
-        filesChanged: [...new Set([...(impl.filesChanged ?? []), ...(fix.filesChanged ?? [])])],
-        testsRun: fix.testsRun, testOutput: fix.testOutput,
-        risks: [...new Set([...(impl.risks ?? []), ...(fix.risks ?? [])])],
-      }
+      impl = mergeImpl(impl, fix)
       // a stale pre-fix PASS/FAIL is worthless — always re-test
       const retestBrief = `Re-VERIFY task "${t.title}" in repo ${A.repo} AFTER a fix round (changed files now: ${JSON.stringify(impl.filesChanged)}). Re-run the suite and re-try the edge cases.${GATE}${QUIET}`
       test = await agent(retestBrief, { label: `re-test:${t.id}`, phase: 'Verify', schema: TESTREP, agentType: 'codeswarm:swarm-tester', model: 'sonnet' })
@@ -137,14 +158,7 @@ async function runTask(t) {
   return { task: t.id, title: t.title, implemented: impl, testerReport: test, reviewVerdict: review, reviewSkipped: skipReview }
 }
 
-// consecutive tasks sharing a `stage` run IN PARALLEL — director may only
-// co-stage provably file-disjoint tasks (same working tree); no stage = sequential
-const stageList = []
-for (const t of A.tasks) {
-  const prev = stageList[stageList.length - 1]
-  if (t.stage != null && prev && prev.key === t.stage) prev.tasks.push(t)
-  else stageList.push({ key: t.stage ?? null, tasks: [t] })
-}
+const stageList = groupStages(A.tasks)
 
 const results = []
 for (const st of stageList) {

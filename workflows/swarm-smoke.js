@@ -15,6 +15,13 @@ for (const e of expected ?? []) {
   if (typeof e.file !== 'string' || !e.file) throw new Error('every expected entry needs a file (substring of the finding path)')
   if (e.mustMatch !== undefined) new RegExp(e.mustMatch, 'i') // bad regex fails loud at parse time
 }
+// sandbox contract probe: every shipped script guards Node-global access with
+// `typeof` (e.g. swarm-review.js CASE_FOLD; contract C8 — absent, access throws,
+// typeof safe: live-proven 2026-07-07 on 2.1.202). If a harness update ever makes
+// the typeof pattern itself throw, smoke fails HERE with a clear trace instead of
+// an expensive workflow dying mid-run on its own guard.
+if (typeof process !== 'undefined') log('sandbox unexpectedly exposes `process` — shipped scripts assume Node globals are absent (C8)')
+
 // quiet-by-default invariant (CONTRIBUTING)
 const QUIET = A.quiet === false ? '' : '\nOUTPUT DISCIPLINE (silent mode): no narration between tool calls; never print diffs or file dumps; deliver ONLY the structured output, terse.'
 // smoke runs entirely on haiku BY DESIGN (cheapest self-test) — args.topModel is

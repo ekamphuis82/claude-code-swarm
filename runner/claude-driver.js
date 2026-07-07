@@ -126,6 +126,18 @@ function parsePayload (stdout) {
 // provably inert — model names, permission modes and tool lists all fit this
 const SAFE_ARG = /^[A-Za-z0-9._:@/,-]+$/
 
+// timeout kill must take the whole PROCESS TREE: on win32 the child is a shell
+// wrapper (spawned with shell:true to resolve claude.cmd) — a plain kill()
+// reaps the shell and orphans the actual claude process, which keeps running
+// and billing. taskkill /t walks the tree; best-effort by design.
+function killTree (child) {
+  if (process.platform === 'win32' && child.pid) {
+    try { spawn('taskkill', ['/pid', String(child.pid), '/t', '/f'], { stdio: 'ignore' }) } catch { /* best effort */ }
+  } else {
+    try { child.kill() } catch { /* already gone */ }
+  }
+}
+
 function spawnClaude (cmd, argv, input, timeoutMs) {
   return new Promise(resolve => {
     const win = process.platform === 'win32'
@@ -147,7 +159,7 @@ function spawnClaude (cmd, argv, input, timeoutMs) {
       resolve({ code, stdout, stderr, timedOut: !!timedOut })
     }
     if (timeoutMs > 0) {
-      timer = setTimeout(() => { child.kill(); done(-1, true) }, timeoutMs)
+      timer = setTimeout(() => { killTree(child); done(-1, true) }, timeoutMs)
     }
     child.stdout.on('data', d => { stdout += d })
     child.stderr.on('data', d => { stderr += d })

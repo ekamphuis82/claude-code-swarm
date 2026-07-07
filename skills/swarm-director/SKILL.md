@@ -74,6 +74,32 @@ after a `--dry` go-ahead.
 - Symmetric: a silently-skipped swarm is as much a bug as a silent fan-out;
   when you skip, say why in one line.
 
+## Specialist-fit gate (before dispatching a substantial run)
+
+Cost fit asks "is the swarm the right tool"; this asks "does the swarm have
+the right specialist". Cheap inline check — match the task's stack/files
+against the loaded agent `name:`/`description:` lines and the convention
+skills; no scout agent. Fire ONLY when fit is poor AND the task is
+substantial (audit/refactor/build/greenfield, or anything feeding a
+shared-file change where confidence matters) — skip it for one-off
+questions and altitude-rule inline work, where spoon-feeding the rules once
+is cheaper than onboarding.
+
+When it fires, name WHICH gap in one line and offer `/codeswarm:swarm
+onboard` — non-blocking, the user may proceed on a generic agent with the
+rules fed inline:
+
+- no stack specialist (e.g. a SCSS/template task with only Vue/PHP/Java
+  agents) → the finder/implementer leans on a generic agent;
+- conventions not durable (rules live in memory or chat, not the repo
+  CLAUDE.md or a convention skill) → every run must re-feed them and
+  drift is unguarded — this is the more dangerous gap, since a generic
+  agent WITH a convention skill usually beats a specialist without one;
+- both.
+
+Do not over-fire: a specialist recommendation on every unfamiliar file
+reads as a funnel and gets ignored — gate hard on substantial + poor-fit.
+
 ## Locating the workflow scripts
 
 This skill's base directory is announced when the skill loads; the scripts

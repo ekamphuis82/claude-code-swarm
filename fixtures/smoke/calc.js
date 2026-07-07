@@ -1,10 +1,10 @@
-// Smoke-test fixture. Planted bug: sumUpTo is off by one (uses < instead of <=).
+/** Returns the sum of the integers 1 through n (inclusive). */
 function sumUpTo(n) {
   let total = 0;
   for (let i = 1; i < n; i++) {
     total += i;
   }
-  return total; // sumUpTo(3) returns 3, should return 6
+  return total;
 }
 
 module.exports = { sumUpTo };

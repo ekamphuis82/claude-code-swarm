@@ -97,6 +97,10 @@ rules fed inline:
   agent WITH a convention skill usually beats a specialist without one;
 - both.
 
+A stack-default specialist (its description carries the stack-default
+marker) closes only the missing-specialist half — the conventions gap
+stays open; keep naming that half for substantial tasks.
+
 Do not over-fire: a specialist recommendation on every unfamiliar file
 reads as a funnel and gets ignored — gate hard on substantial + poor-fit.
 
@@ -308,9 +312,32 @@ the answers, restate the estimate in one line and launch. "Always do this"
      up from `skills/swarm-director/`). It is NOT a scan target.
    - Hard rule: the plugin clone never appears in `repos`, and `repos`
      never defaults to the current working directory or to `pluginDir`.
-1. **Propose** (script default mode): run with `{repos, pluginDir}` →
-   `{mode, proposal: {agents, skills}, plannedFiles, inventories}`. Writes
-   NOTHING.
+0b. **Stack-default fallback** (only when the user has no repos to scan or
+   explicitly declines the scan). A repo scan is STRONGLY recommended over
+   stack defaults: scanned rules carry file:line evidence and capture where
+   YOUR code contradicts framework defaults — which is exactly what generic
+   reviewers miss. A stack-default roster only pins versions and era
+   choices; it routes work, it does not know your conventions. State that
+   recommendation first; on a maintained decline, collect the stacks with
+   ONE multi-select question (compose likely stacks for this user's
+   context — e.g. C#/.NET, Angular, React, Vue, PHP/Laravel, Symfony,
+   Java/Spring, Python/Django, Node — plus free text), then per chosen
+   stack the version and optional house rules (free text → `notes`). Build
+   `stacks: [{name, version, notes}]` and pass it INSTEAD of `repos` —
+   never both in one run (the script rejects mixed provenance; mixed needs
+   = two onboard runs). Steps 1–3 run unchanged (same approval gate, same
+   verbatim-text review); present the proposal WITH the no-evidence caveat.
+   Generated artifacts carry a visible stack-default marker in their
+   description, `swarm-drift.js` skips them (nothing to drift against), and
+   the specialist-fit gate keeps treating the conventions gap as open — to
+   close it, re-run onboard against a real repo later (existing `my-*`
+   files are never overwritten: drop the stack-default files first, or
+   amend by hand).
+1. **Propose** (script default mode): run with `{repos, pluginDir}` — or
+   `{stacks, pluginDir}` on the 0b fallback →
+   `{mode, origin, proposal: {origin, agents, skills}, plannedFiles,
+   inventories}`. Writes NOTHING. `origin` travels inside the proposal;
+   generate mode reads it from there — never strip it when amending.
 2. **Present for approval** (director action). The gate reviews CONTENT,
    kept scannable — show exactly two things:
    - a **summary table**: one row per agent (name, scope, skills it loads,
@@ -364,7 +391,7 @@ still pass real JSON objects.
 | `swarm-review.js` | `repo` | `target`, `dimensions` (bugs, security, wcag, performance, conventions, architecture, test-coverage — the last is opt-in, never in the default set; its finder is the tester agent), `a11yLevel` (off/A/AA/AAA, default AA; off drops wcag from the default set), `rigor` (see Cost model), `verify` (normal/strict — full rigor only), `thorough`, `quiet`, `topModel`, `sinceRef`, `waivers` |
 | `swarm-refactor.js` | `repo`, `instruction` | `scope`, `quiet` |
 | `swarm-research.js` | `question` | `repo`, `angles[]`, `quiet`, `topModel` |
-| `swarm-onboard.js` | `pluginDir` (absolute path to the plugin clone — generation target); propose mode also needs `repos [{name,path}]`; generate mode also needs `proposal` (the user-approved proposal object) | `mode` (`propose` default; `generate`), `quiet`, `topModel` |
+| `swarm-onboard.js` | `pluginDir` (absolute path to the plugin clone — generation target); propose mode also needs `repos [{name,path}]` (scan — strongly recommended) OR `stacks [{name,version?,notes?}]` (stack-default fallback, ONBOARD step 0b; never both); generate mode also needs `proposal` (the user-approved proposal object, `origin` included) | `mode` (`propose` default; `generate`), `quiet`, `topModel` |
 | `swarm-smoke.js` | `fixtureDir` | `quiet`, `expected [{file, mustMatch?}]` — graded fixtures (e.g. `fixtures/eval`): YOU read the fixture's `expected.json` and pass it through (scripts cannot read files); pass = zero `missed`. Graded results also carry `baseline` (the raw pre-verify finder output graded against the same expected set): report the raw-vs-verified delta — it is the A/B evidence of what the verify layer bought. After a PASSING smoke, record `lastSmokeVersion`; after EVERY graded run, log the result — both via `tools/record-eval.js` (see Update canary & eval log) |
 | `swarm-drift.js` | `repos [{name,path}]`, `skillsDir` | `quiet`, `topModel` |
 

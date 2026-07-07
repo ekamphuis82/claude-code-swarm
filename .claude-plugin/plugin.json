@@ -1,8 +1,11 @@
 {
   "name": "codeswarm",
+  "version": "1.0.0",
   "description": "Multi-agent swarm plugin for Claude Code: /codeswarm:swarm director (routes: build, greenfield, review, refactor, research, drift, smoke, onboard, doctor, setup, resume), deterministic workflow scripts (build/review/refactor/research/drift/smoke/onboard), tiny auditable session hooks and stack-agnostic process agents.",
   "author": {
     "name": "Erik Kamphuis"
   },
+  "homepage": "https://github.com/ekamphuis82/claude-code-swarm",
+  "repository": "https://github.com/ekamphuis82/claude-code-swarm",
   "license": "MIT"
 }

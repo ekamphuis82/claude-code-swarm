@@ -1,6 +1,6 @@
 {
   "name": "claude-code-swarm",
-  "description": "Local marketplace for the codeswarm plugin: multi-agent orchestration for Claude Code.",
+  "description": "Marketplace for the codeswarm plugin: multi-agent swarm orchestration for Claude Code.",
   "owner": { "name": "Erik Kamphuis" },
   "plugins": [
     {

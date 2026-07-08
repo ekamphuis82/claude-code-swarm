@@ -109,7 +109,8 @@ Run in this order. Status per row: OK / FAIL / WARN / SKIP.
    attention and blurs dispatch, it breaks nothing.
 10. **Effective config (per-repo resolution)** — the value the director would
    actually use from the CURRENT working directory, per key. For each of
-   `topModel`, `accessibility`, `retrospect`, `rigor`, `issueTracker.kind`:
+   `topModel`, `accessibility`, `retrospect`, `rigor`, `adHocSpecialists`,
+   `issueTracker.kind`:
    resolve (a) the current repo's CLAUDE.md `## swarm` section when present
    (it may override `accessibility`, `retrospect`, review `dimensions`),
    else (b) the global config file, else (c) the built-in default — and

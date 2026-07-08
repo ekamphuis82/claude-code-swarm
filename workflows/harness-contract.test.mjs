@@ -240,3 +240,41 @@ test('swarm-onboard.js: generate stamps the stack-default provenance into every 
   assert.ok(writers.every(c => c.prompt.includes('Stack-default (generated without a repo scan)')),
     'every writer prompt must carry the provenance instruction')
 })
+
+test('swarm-onboard.js: existingAgents ride the synthesis prompt fenced; absent = no overlap clause', async () => {
+  const withAgents = await run('swarm-onboard.js', {
+    pluginDir: '/p', repos: [{ name: 'r', path: '/r' }],
+    existingAgents: [{ name: 'java-backend-pro', description: 'my own Spring agent' }],
+  })
+  assertInvariants('swarm-onboard.js', withAgents)
+  const synth = withAgents.calls.find(c => c.opts.label.startsWith('synthesize'))
+  assert.ok(synth.prompt.includes('Overlap with the user\'s EXISTING agents'), 'synthesis prompt must carry the overlap instruction')
+  assert.ok(synth.prompt.includes('java-backend-pro'), 'the existing agent must reach the synthesis prompt')
+  assert.ok(/BEGIN DATA \w+ \(existing agents\)/.test(synth.prompt), 'existing agents must sit inside the data fence')
+
+  const without = await run('swarm-onboard.js', { pluginDir: '/p', repos: [{ name: 'r', path: '/r' }] })
+  const synth2 = without.calls.find(c => c.opts.label.startsWith('synthesize'))
+  assert.ok(!synth2.prompt.includes('Overlap with the user'), 'no existingAgents = no overlap clause in the prompt')
+})
+
+test('swarm-onboard.js: generate strips overlap from writer prompts and adHocSpecialists softens the routing hint', async () => {
+  const proposal = {
+    agents: [{
+      name: 'alpha', description: 'd', scope: 's', evidence: 'e', skills: [], rules: [],
+      overlap: { existingAgent: 'java-backend-pro', recommendation: 'generate-anyway', reason: 'r' },
+    }],
+    skills: [],
+  }
+  const hard = await run('swarm-onboard.js', { pluginDir: '/p', mode: 'generate', proposal })
+  assertInvariants('swarm-onboard.js', hard)
+  const hardWriter = hard.calls.find(c => c.opts.label.startsWith('gen:agent:'))
+  assert.ok(!hardWriter.prompt.includes('overlap'), 'overlap is approval-gate metadata — it must never reach a writer prompt')
+  assert.ok(!hardWriter.prompt.includes('java-backend-pro'), 'the overlapping agent name must not leak into the generated artifact')
+  assert.ok(hardWriter.prompt.includes('instead of spawning this agent ad hoc'), 'default routing hint must stay the hard never-ad-hoc form')
+
+  const soft = await run('swarm-onboard.js', { pluginDir: '/p', mode: 'generate', proposal, adHocSpecialists: true })
+  assertInvariants('swarm-onboard.js', soft)
+  const softWriter = soft.calls.find(c => c.opts.label.startsWith('gen:agent:'))
+  assert.ok(softWriter.prompt.includes('direct use is fine for small single-scope tasks'), 'adHocSpecialists must soften the routing hint')
+  assert.ok(!softWriter.prompt.includes('instead of spawning this agent ad hoc'), 'softened hint must replace the hard form')
+})

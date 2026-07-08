@@ -1,6 +1,6 @@
 ---
 name: swarm-setup
-description: Re-runnable configuration dialogue for the codeswarm plugin — shows the current config when present, asks the six setup questions (always-on, top model, accessibility level, retrospect mode, rigor, issue tracker) and writes ~/.claude/codeswarm.json. Run it any time settings change, e.g. after a subscription change.
+description: Re-runnable configuration dialogue for the codeswarm plugin — shows the current config when present, asks the seven setup questions (always-on, top model, accessibility level, retrospect mode, rigor, ad hoc specialists, issue tracker) and writes ~/.claude/codeswarm.json. Run it any time settings change, e.g. after a subscription change.
 ---
 
 # /codeswarm:swarm setup — configuration (re-runnable)
@@ -25,7 +25,7 @@ to re-run: a subscription change (raise or drop the top-model cap).
    only the path — NEVER the file contents) and use them as the defaults for
    the questions below. If absent, say this is first-time setup and use the
    stated defaults.
-2. **Ask the six questions** below — one at a time, short answers, always
+2. **Ask the seven questions** below — one at a time, short answers, always
    offering the default.
 3. **Write the file** with the Write tool, exact shape as in "File shape"
    below. Pretty-print (2-space indent). Carry over a `lastSmokeVersion`
@@ -37,7 +37,7 @@ to re-run: a subscription change (raise or drop the top-model cap).
    session (the SessionStart hook reads it); `/codeswarm:swarm doctor` displays the
    active config; re-run `/codeswarm:swarm setup` any time.
 
-## The six questions
+## The seven questions
 
 1. **Always-on mode?** — key `alwaysOn`, `true`/`false`, default `false`.
    When true, every new session starts with a one-line directive to route
@@ -92,7 +92,20 @@ to re-run: a subscription change (raise or drop the top-model cap).
    (review), ~3–4x. Recommend leaving it on `lite` and escalating a single
    run with `--thorough` (or `--rigor=full`) when a bug would be expensive;
    set `full` only if most of your work is high-stakes.
-6. **Issue tracker** — key `issueTracker`, default `{ "kind": "none" }`.
+6. **Ad hoc specialists?** — key `adHocSpecialists`, `true`/`false`, default
+   `false`; recommend `true` to users who also want to use their generated
+   `my-*` stack agents outside swarm runs (a common and sanctioned use —
+   the agents are theirs). When true, the session directives and newly
+   generated `my-*` descriptions permit spawning a stack specialist
+   directly for small single-scope tasks; multi-step or review-gated work
+   still routes through the director. Existing `my-*` files are never
+   rewritten by this setting — hand-edit the description line, or delete
+   the file and re-run onboard (onboard never overwrites existing files),
+   to update agents generated before the switch.
+   *Cost:* none by itself. Direct use skips the swarm's verification
+   layers on purpose — that is the trade: cheaper small tasks, no
+   independent verify on them.
+7. **Issue tracker** — key `issueTracker`, default `{ "kind": "none" }`.
    `none` = findings stay in-chat. `gitlab` / `github` = the director MAY
    (opt-in per run, batched after a workflow) file confirmed findings as
    issues.
@@ -118,6 +131,7 @@ to re-run: a subscription change (raise or drop the top-model cap).
   "accessibility": "AA",
   "retrospect": "full",
   "rigor": "lite",
+  "adHocSpecialists": false,
   "issueTracker": { "kind": "none" }
 }
 ```
@@ -132,7 +146,10 @@ to re-run: a subscription change (raise or drop the top-model cap).
 
 ## Who reads this file
 
-- `hooks/session-start.js` — `alwaysOn` (three-stage session nudge).
+- `hooks/session-start.js` — `alwaysOn` (three-stage session nudge) and
+  `adHocSpecialists` (directive wording).
+- `hooks/swarm-router.js` — file existence as the opt-in gate, and
+  `adHocSpecialists` (routing-line wording).
 - The swarm director (`codeswarm:swarm-director`) — all other keys, at
   triage time, wired into workflow args (see its "Config file" section).
 - `/codeswarm:swarm doctor` — displays the active config as one status row.

@@ -25,6 +25,14 @@ out=$(printf '%s\n' '{"session_id":"t"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/
 echo "$out" | grep -q "codeswarm:swarm-director" || fail "stage2: expected the always-on directive, got: $out"
 [ "$(printf '%s' "$out" | grep -c .)" -eq 1 ] || fail "stage2: must be exactly one line"
 
+# stage 2b: alwaysOn + adHocSpecialists -> directive sanctions direct my-* use, still one line
+echo '{"alwaysOn": true, "adHocSpecialists": true}' > "$TMP/codeswarm.json"
+out=$(printf '%s\n' '{"session_id":"t"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/session-start.js") || fail "stage2b exit code"
+echo "$out" | grep -q "codeswarm:swarm-director" || fail "stage2b: expected the always-on directive, got: $out"
+echo "$out" | grep -q "stack specialists may be used directly" || fail "stage2b: expected the ad-hoc-specialists wording, got: $out"
+if echo "$out" | grep -q "never spawn"; then fail "stage2b: hard never-ad-hoc wording must be replaced, got: $out"; fi
+[ "$(printf '%s' "$out" | grep -c .)" -eq 1 ] || fail "stage2b: must be exactly one line"
+
 # stage 3: config present, alwaysOn false -> silent
 echo '{"alwaysOn": false}' > "$TMP/codeswarm.json"
 out=$(printf '%s\n' '{"session_id":"t"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/session-start.js") || fail "stage3 exit code"
@@ -80,6 +88,15 @@ echo '{"alwaysOn": false}' > "$TMP/codeswarm.json"
 out=$(printf '%s\n' '{"prompt":"use the swarm to review this repo"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/swarm-router.js") || fail "router exit code"
 echo "$out" | grep -q "codeswarm:swarm-director" || fail "router: expected the routing line, got: $out"
 [ "$(printf '%s' "$out" | grep -c .)" -eq 1 ] || fail "router: must be exactly one line"
+
+# adHocSpecialists -> routing line still fires, with the softened tail
+echo '{"alwaysOn": false, "adHocSpecialists": true}' > "$TMP/codeswarm.json"
+out=$(printf '%s\n' '{"prompt":"use the swarm to review this repo"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/swarm-router.js") || fail "router adhoc exit code"
+echo "$out" | grep -q "codeswarm:swarm-director" || fail "router adhoc: expected the routing line, got: $out"
+echo "$out" | grep -q "stack specialists may be used directly" || fail "router adhoc: expected the ad-hoc-specialists wording, got: $out"
+if echo "$out" | grep -q "never spawn"; then fail "router adhoc: hard never-ad-hoc wording must be replaced, got: $out"; fi
+[ "$(printf '%s' "$out" | grep -c .)" -eq 1 ] || fail "router adhoc: must be exactly one line"
+echo '{"alwaysOn": false}' > "$TMP/codeswarm.json"
 
 # the plugin's own brand "codeswarm" must fire too
 out=$(printf '%s\n' '{"prompt":"use codeswarm to review this repo"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/swarm-router.js") || fail "router codeswarm exit code"

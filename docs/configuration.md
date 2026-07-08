@@ -16,6 +16,8 @@ re-asks). Location: `$HOME/.claude/codeswarm.json`, or
   "topModel": null,
   "accessibility": "AA",
   "retrospect": "full",
+  "rigor": "lite",
+  "adHocSpecialists": false,
   "issueTracker": { "kind": "none" }
 }
 ```
@@ -28,6 +30,7 @@ re-asks). Location: `$HOME/.claude/codeswarm.json`, or
 | `accessibility` | `"off"`/`"A"`/`"AA"`/`"AAA"` (`"AA"`) | whether the wcag dimension sits in the default review set, and which WCAG 2.2 level the auditors apply (contrast bars shift with the level) |
 | `retrospect` | `"full"`/`"light"`/`"off"` (`"full"`) | post-build architecture retrospect: full = coherence + package hygiene + naming + DX; light = breaking findings only; off = skipped. Never auto-fixes in any mode |
 | `rigor` | `"lite"`/`"full"` (`"lite"`) | default verification depth. `lite` (default): build = implement + one independent test per task, no adversarial review, no retrospect; review = single-lens verify, no severity check (~1.5–2x raw). `full`: adds the adversarial review + retrospect (build) and the graded 2-lens + severity verify (review) (~3–4x). Escalate one run with `--thorough`/`--rigor=full` without changing this default |
+| `adHocSpecialists` | `true`/`false` (`false`) | `true`: your generated `my-*` stack specialists may be spawned directly for small single-scope tasks — the hook directives and newly generated agent descriptions say so; multi-step or review-gated work still routes through the director. Direct use deliberately skips the swarm's verification layers. Existing `my-*` files keep their old description until hand-edited (or deleted and regenerated — onboard never overwrites) |
 | `issueTracker` | object (`{"kind": "none"}`) | output sink for confirmed findings — see below |
 | `lastSmokeVersion` | semver string (absent) | update-canary baseline: the Claude Code version at the last PASSING `/codeswarm:swarm smoke` run. Written via `tools/record-eval.js` (the director runs it after a passing smoke; it preserves every other key, and setup preserves this one); the SessionStart hook compares it against the running version and nudges a re-smoke on mismatch, because the Workflow tool has no stable public API |
 | `runner` | `"workflow"`/`"standalone"` (absent = `"workflow"`) | execution vehicle for the workflow scripts. `workflow` (default) = Claude Code's Workflow tool. `standalone` = the director dispatches via `node runner/run.js` instead — the failover when a Claude Code update breaks the Workflow tool (canary fires, smoke fails). Not a setup question; set it by hand or on the director's advice, and remove it once a re-smoke passes on the Workflow tool. See docs/security.md "Standalone runner" for the permission model |

@@ -104,6 +104,8 @@ runs on an unseen proposal.
 | `mode` | no | `propose` (default, writes nothing) / `generate` |
 | `proposal` | generate mode | the user-approved proposal object |
 | `topModel` | no | caps inventory/synthesis tier |
+| `existingAgents` | no | `[{name, description}]` — the session's non-codeswarm custom agents (the director collects them); a proposed agent whose role one already covers carries an `overlap` field (`existingAgent`, `adopt-existing`/`generate-anyway`, reason) for the approval gate |
+| `adHocSpecialists` | no | generate mode; `true` (from the config, passed through by the director) softens the routing hint stamped into generated agent descriptions — direct use sanctioned for small single-scope tasks |
 
 Output (propose): `{proposal: {agents, skills}, plannedFiles, inventories}`.
 Output (generate): `{generated, skipped}` — existing files are never

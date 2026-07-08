@@ -14,13 +14,17 @@ const os = require('os')
 const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
 const configPath = path.join(configDir, 'codeswarm.json')
 
-let configured = false
-try {
-  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
-  configured = config !== null && typeof config === 'object' && !Array.isArray(config)
-} catch { /* missing or unreadable = not configured, stay silent */ }
+let config = null
+try { config = JSON.parse(fs.readFileSync(configPath, 'utf8')) } catch { /* missing or unreadable = not configured, stay silent */ }
+const configured = config !== null && typeof config === 'object' && !Array.isArray(config)
 
 if (!configured) process.exit(0)
+
+// same wording split as session-start.js: adHocSpecialists sanctions direct
+// use of the user's own my-* stack agents for small single-scope tasks
+const adHocTail = config.adHocSpecialists === true
+  ? 'spawn codeswarm process agents only via the director; my-* stack specialists may be used directly for small single-scope tasks.'
+  : 'never spawn codeswarm:* agents ad hoc.'
 
 let raw = ''
 process.stdin.on('data', d => { raw += d })
@@ -35,7 +39,7 @@ process.stdin.on('end', () => {
     .replace(/\bclaude-code-swarm\b/gi, ' ')
     .replace(/\S+\.[a-z0-9]{1,5}(?=\s|$)/gi, ' ')
   if (/\b(?:code)?swarm\b/i.test(scrubbed)) {
-    console.log('codeswarm router: this prompt mentions the swarm — load the codeswarm:swarm-director skill FIRST and follow its triage; never spawn codeswarm:* agents ad hoc.')
+    console.log(`codeswarm router: this prompt mentions the swarm — load the codeswarm:swarm-director skill FIRST and follow its triage; ${adHocTail}`)
   }
   // no process.exit(): stdout to a pipe is async on Windows and exit() can truncate
   // the routing line; with no open handles the script exits 0 naturally.

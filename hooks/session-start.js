@@ -33,7 +33,12 @@ function currentVersion () {
 if (config === null || typeof config !== 'object' || Array.isArray(config)) {
   console.log('codeswarm: not configured yet — run /codeswarm:swarm setup once (re-runnable) to set swarm defaults; until then /codeswarm:swarm still works with built-in defaults.')
 } else {
-  const alwaysOnLine = 'codeswarm always-on: for substantive coding work (feature build, review/audit, refactor, research), load the codeswarm:swarm-director skill first and let it triage — never spawn codeswarm:* agents ad hoc.'
+  // adHocSpecialists sanctions direct use of the user's own my-* stack agents
+  // for small single-scope tasks; process agents stay director-dispatched
+  const adHocTail = config.adHocSpecialists === true
+    ? 'spawn codeswarm process agents only via the director; my-* stack specialists may be used directly for small single-scope tasks.'
+    : 'never spawn codeswarm:* agents ad hoc.'
+  const alwaysOnLine = `codeswarm always-on: for substantive coding work (feature build, review/audit, refactor, research), load the codeswarm:swarm-director skill first and let it triage — ${adHocTail}`
   // version lookup only when there is a recorded baseline to compare against
   const now = typeof config.lastSmokeVersion === 'string' && config.lastSmokeVersion ? currentVersion() : null
   if (now && now !== config.lastSmokeVersion) {

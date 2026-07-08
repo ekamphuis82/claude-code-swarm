@@ -51,10 +51,10 @@ Run in this order. Status per row: OK / FAIL / WARN / SKIP.
    `-research`, `-drift`, `-smoke`, `-onboard`) also appear here when the
    harness lists workflows as skills. FAIL when the director or repo-entry
    skill is missing. Fix hint: same as check 3.
-5. **Content sync (installed vs clone)** — `plugin.json` deliberately has NO
-   `version` field (Claude Code then uses the git commit SHA as the version,
-   so every pushed commit is installable). Staleness is therefore judged by
-   content, not by a version number — compare the trees:
+5. **Content sync (installed vs clone)** — the `version` in `plugin.json`
+   only changes when a release bumps it, so the installed copy can be
+   content-stale while the number still matches. Staleness is therefore
+   judged by content, not by the version number — compare the trees:
    `diff -rq -x .git "<clone>" "<installed root>"` (POSIX/git-bash; on
    PowerShell compare `Get-FileHash` output of both trees, excluding `.git`).
    Any differing or missing file: WARN "installed copy is stale", detail

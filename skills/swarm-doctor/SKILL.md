@@ -1,6 +1,6 @@
 ---
 name: swarm-doctor
-description: Installation and configuration diagnostics for the codeswarm plugin — checks node, the Workflow tool, registered agents and skills, installed copy vs clone, the config file (when present), workflow-script syntax, the my- naming contract and the effective per-repo config resolution, then prints one status table with a fix hint per failing row. Static checks only; run /codeswarm:swarm smoke for a live end-to-end proof.
+description: Installation and configuration diagnostics for the codeswarm plugin — checks node, the Workflow tool, registered agents and skills, installed copy vs clone, the config file (when present), workflow-script syntax, the my- naming contract, custom-agent overlap and the effective per-repo config resolution, then prints one status table with a fix hint per failing row. Static checks only; run /codeswarm:swarm smoke for a live end-to-end proof.
 ---
 
 # /codeswarm:swarm doctor — installation and config diagnostics
@@ -98,7 +98,16 @@ Run in this order. Status per row: OK / FAIL / WARN / SKIP.
    artifacts: OK, detail "N own my-* artifacts committed". Untracked
    `my-*` files are always fine (fresh onboard output not yet committed).
    Clone path unknown: SKIP, same hint as check 5.
-9. **Effective config (per-repo resolution)** — the value the director would
+9. **Custom-agent overlap** — compare the `codeswarm:my-*` agents in your
+   registry against the non-codeswarm custom agents there (the user's own
+   agents, other plugins'). A `my-x` next to a custom agent whose name or
+   description clearly covers the same role/stack: WARN listing the pairs.
+   Fix hint: pick one per lane — drop or ignore the duplicate, or re-run
+   `/codeswarm:swarm onboard` (the director passes your existing agents, so
+   the proposal marks overlap for you to resolve at the approval gate). No
+   custom agents or no overlap: OK. Purely informational — overlap wastes
+   attention and blurs dispatch, it breaks nothing.
+10. **Effective config (per-repo resolution)** — the value the director would
    actually use from the CURRENT working directory, per key. For each of
    `topModel`, `accessibility`, `retrospect`, `rigor`, `issueTracker.kind`:
    resolve (a) the current repo's CLAUDE.md `## swarm` section when present

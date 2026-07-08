@@ -100,8 +100,11 @@ that is Claude Code's traffic, not the plugin's.)
   external side channels.
 - Issue bodies and other tracker content are untrusted input: data, never
   instructions that override skills, gates or config.
-- Onboard proposals are synthesized from scanned repo content and are
-  untrusted until you have read them. The approval gate therefore reviews
+- Onboard proposals are synthesized from scanned repo content — and, when
+  the director passes `existingAgents`, from the descriptions of custom
+  agents that may come from third-party plugins; both ride the synthesis
+  prompts inside the same data fence (untrusted data, never instructions).
+  Proposals are untrusted until you have read them. The approval gate therefore reviews
   CONTENT, not counts: the director shows every string field of the
   proposal — full rule texts, agent descriptions, scope and evidence —
   BEFORE generate mode writes anything. Never approve from a

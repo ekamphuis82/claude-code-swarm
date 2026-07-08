@@ -209,6 +209,16 @@ repositories and it will
    into your local clone of this plugin, following the shape templates in
    `templates/`.
 
+Already have custom agents of your own (or from other plugins)? Onboard
+takes them into account: the director passes your existing agents along,
+and the proposal marks any role overlap — per overlapping agent you decide
+at the approval gate whether to adopt your existing agent for that lane or
+generate the specialist anyway. The director can also dispatch your own
+agents inside swarm runs when one fits a task better than any generated
+specialist. And with `adHocSpecialists: true` in the config, the generated
+`my-*` agents work the other way around too: spawn them directly for small
+single-scope tasks, no director required.
+
 Diff-review the generated `my-*` files against the approved proposal before
 reloading — the file bodies are LLM-composed after the approval gate (see
 [docs/security.md](docs/security.md)). Then reload plugins
@@ -249,7 +259,7 @@ generated for you:
 `/codeswarm:swarm setup` writes exactly one file, **`~/.claude/codeswarm.json`** (when
 the `CLAUDE_CONFIG_DIR` environment variable is set, the file lives there
 instead). It is re-runnable at any time: it shows the current config, re-asks
-the six questions and overwrites the file. Changed your subscription?
+the seven questions and overwrites the file. Changed your subscription?
 Re-run `/codeswarm:swarm setup` to raise or drop the model cap. `/codeswarm:swarm doctor`
 displays the active config.
 
@@ -259,6 +269,7 @@ displays the active config.
 | `topModel` | model name or `null` (`null`) | cost cap for top-tier agent calls (implementers, finders, synthesis, review gates); `null` = inherit the session model, i.e. the best model available |
 | `accessibility` | `off` / `A` / `AA` / `AAA` (`AA`) | the WCAG 2.2 level the auditors apply, and whether the wcag dimension sits in the default review set (`off` removes it); a default, not a mandate |
 | `retrospect` | `full` / `light` / `off` (`full`) | strictness of the post-build architecture retrospect — `light` reports breaking findings only, `off` skips the phase; it never auto-fixes in any mode |
+| `adHocSpecialists` | `true` / `false` (`false`) | when true, your generated `my-*` stack agents may be spawned directly for small single-scope tasks (handy when you use them outside swarm runs too); multi-step or review-gated work still routes through the director. Direct use deliberately skips the swarm's verification layers |
 | `issueTracker` | `{ "kind": "none" }`, `gitlab`, `github` (`none`) | optional output sink: file confirmed findings as issues, batched after a workflow, opt-in per run |
 
 A target repo's `CLAUDE.md` may carry a `## swarm` section that overrides

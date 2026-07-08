@@ -13,9 +13,12 @@ scripts designed to be audited in one sitting:
   or, read-only, the native installer's versions directory; undetectable =
   silent); the always-on routing directive when `alwaysOn` is true; nothing
   otherwise. Always exits 0 — a hook must never break a session.
-- **`hooks/swarm-router.js`** (UserPromptSubmit) — reads the
-  prompt from stdin; when it mentions the swarm as a whole word, prints one
-  routing line so the session loads the director first. Mentions that are
+- **`hooks/swarm-router.js`** (UserPromptSubmit) — scope-gated: until the
+  user has run setup once (the same `codeswarm.json` config `session-start.js`
+  reads exists), it exits immediately and never inspects prompt text. Once
+  configured, it reads the prompt from stdin; when it mentions the swarm as a
+  whole word, prints one routing line so the session loads the director
+  first. Mentions that are
   *about* the plugin rather than asks *for* the swarm — path tokens, bare
   filenames, the repo name `claude-code-swarm` — are scrubbed before the
   match and never fire. Malformed input = silent. Always exits 0 — never

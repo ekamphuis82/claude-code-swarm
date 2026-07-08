@@ -57,14 +57,15 @@ in the `node --test` step.
 - **Internal workflow markers** go at the END of `meta.description` as
   `[internal: launched by swarm-director]` — the description doubles as the
   progress-UI title.
-- **`plugin.json` carries NO `version` field — on purpose.** Claude Code
-  uses the version string as the plugin cache key; without one it falls back
-  to the git commit SHA, so EVERY pushed commit is immediately installable
-  via `claude plugin update codeswarm@claude-code-swarm` (terminal CLI,
-  marketplace-qualified name — there is no `/plugin update` slash command
-  and the bare plugin name is not found). Adding a version field back would
-  freeze users on the cached copy until someone remembers to bump it —
-  don't.
+- **Bump `plugin.json` `version` in the same PR as any user-visible
+  change.** The marketplace listing requires the field, and Claude Code
+  uses the version string as the plugin cache key: `claude plugin update`
+  reports "already at the latest version" on an unchanged number even when
+  the content is newer — an unbumped release silently freezes every
+  installed copy on the old cache. (The field was originally omitted so the
+  git SHA served as the version and every pushed commit was installable;
+  marketplace submission ended that option.) Semver-ish is fine: features
+  minor, fixes patch.
 
 ## Style
 

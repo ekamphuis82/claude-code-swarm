@@ -239,9 +239,9 @@ director dispatches the same workflow scripts through the standalone runner
 journal/resume) until a re-smoke on the Workflow tool passes. Marketplace added as a GitHub reference: run
 `claude plugin marketplace update claude-code-swarm && claude plugin update
 codeswarm@claude-code-swarm` in a terminal (the plugin name must be
-marketplace-qualified) — every pushed commit is installable (`plugin.json`
-deliberately carries no version field, so the git commit SHA is the
-version; there is no `/plugin update` slash command). Marketplace added as
+marketplace-qualified; there is no `/plugin update` slash command) — a
+release is whatever commit bumps the `version` in `plugin.json`, since the
+updater compares that number, not the content. Marketplace added as
 a local clone path: `git pull` in the clone, then the same two commands (or
 restart Claude Code). Neither will ever conflict with what onboard
 generated for you:

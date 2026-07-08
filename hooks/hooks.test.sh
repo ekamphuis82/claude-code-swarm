@@ -67,48 +67,57 @@ if echo "$out" | grep -q "update canary"; then fail "canary-quiet: canary must n
 
 # --- swarm-router.js: UserPromptSubmit router ---
 
+# scope gate: no config at all -> silent even on a clear swarm mention
+RTMP="$(mktemp -d)"
+out=$(printf '%s\n' '{"prompt":"use the swarm to review this repo"}' | CLAUDE_CONFIG_DIR="$RTMP" node "$ROOT/hooks/swarm-router.js") || fail "router unconfigured exit code"
+[ -z "$out" ] || fail "router: must stay silent until codeswarm is configured, got: $out"
+rm -rf "$RTMP"
+
+# the rest of the router tests run against a configured install (setup already run)
+echo '{"alwaysOn": false}' > "$TMP/codeswarm.json"
+
 # prompt mentions swarm as a word -> one routing line
-out=$(printf '%s\n' '{"prompt":"use the swarm to review this repo"}' | node "$ROOT/hooks/swarm-router.js") || fail "router exit code"
+out=$(printf '%s\n' '{"prompt":"use the swarm to review this repo"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/swarm-router.js") || fail "router exit code"
 echo "$out" | grep -q "codeswarm:swarm-director" || fail "router: expected the routing line, got: $out"
 [ "$(printf '%s' "$out" | grep -c .)" -eq 1 ] || fail "router: must be exactly one line"
 
 # the plugin's own brand "codeswarm" must fire too
-out=$(printf '%s\n' '{"prompt":"use codeswarm to review this repo"}' | node "$ROOT/hooks/swarm-router.js") || fail "router codeswarm exit code"
+out=$(printf '%s\n' '{"prompt":"use codeswarm to review this repo"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/swarm-router.js") || fail "router codeswarm exit code"
 echo "$out" | grep -q "codeswarm:swarm-director" || fail "router: expected the routing line for 'codeswarm', got: $out"
 [ "$(printf '%s' "$out" | grep -c .)" -eq 1 ] || fail "router codeswarm: must be exactly one line"
 
 # word boundary: "swarming" must NOT fire
-out=$(printf '%s\n' '{"prompt":"bees swarming around the hive"}' | node "$ROOT/hooks/swarm-router.js") || fail "router boundary exit code"
+out=$(printf '%s\n' '{"prompt":"bees swarming around the hive"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/swarm-router.js") || fail "router boundary exit code"
 [ -z "$out" ] || fail "router: must not fire on 'swarming', got: $out"
 
 # path mention must NOT fire (talking ABOUT the repo, not asking for the swarm)
-out=$(printf '%s\n' '{"prompt":"what do you think of C:\\devProjects\\claude-code-swarm"}' | node "$ROOT/hooks/swarm-router.js") || fail "router path exit code"
+out=$(printf '%s\n' '{"prompt":"what do you think of C:\\devProjects\\claude-code-swarm"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/swarm-router.js") || fail "router path exit code"
 [ -z "$out" ] || fail "router: must not fire on a windows path, got: $out"
-out=$(printf '%s\n' '{"prompt":"review hooks/swarm-router.js for bugs"}' | node "$ROOT/hooks/swarm-router.js") || fail "router relpath exit code"
+out=$(printf '%s\n' '{"prompt":"review hooks/swarm-router.js for bugs"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/swarm-router.js") || fail "router relpath exit code"
 [ -z "$out" ] || fail "router: must not fire on a relative path, got: $out"
 
 # bare repo/marketplace name must NOT fire
-out=$(printf '%s\n' '{"prompt":"update the claude-code-swarm marketplace"}' | node "$ROOT/hooks/swarm-router.js") || fail "router reponame exit code"
+out=$(printf '%s\n' '{"prompt":"update the claude-code-swarm marketplace"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/swarm-router.js") || fail "router reponame exit code"
 [ -z "$out" ] || fail "router: must not fire on the repo name, got: $out"
 
 # filename token must NOT fire
-out=$(printf '%s\n' '{"prompt":"open swarm-router.js and codeswarm.json"}' | node "$ROOT/hooks/swarm-router.js") || fail "router filename exit code"
+out=$(printf '%s\n' '{"prompt":"open swarm-router.js and codeswarm.json"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/swarm-router.js") || fail "router filename exit code"
 [ -z "$out" ] || fail "router: must not fire on filenames, got: $out"
 
 # the slash command mentioned in prose MUST still fire
-out=$(printf '%s\n' '{"prompt":"run /codeswarm:swarm review on this repo"}' | node "$ROOT/hooks/swarm-router.js") || fail "router slashcmd exit code"
+out=$(printf '%s\n' '{"prompt":"run /codeswarm:swarm review on this repo"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/swarm-router.js") || fail "router slashcmd exit code"
 echo "$out" | grep -q "codeswarm:swarm-director" || fail "router: expected the routing line for '/codeswarm:swarm', got: $out"
 
 # a real ask that also contains a path MUST still fire (scrub only kills the path token)
-out=$(printf '%s\n' '{"prompt":"use the swarm to audit C:\\devProjects\\some-target-repo"}' | node "$ROOT/hooks/swarm-router.js") || fail "router mixed exit code"
+out=$(printf '%s\n' '{"prompt":"use the swarm to audit C:\\devProjects\\some-target-repo"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/swarm-router.js") || fail "router mixed exit code"
 echo "$out" | grep -q "codeswarm:swarm-director" || fail "router: expected the routing line for swarm+path, got: $out"
 
 # no mention -> silent
-out=$(printf '%s\n' '{"prompt":"fix the login bug"}' | node "$ROOT/hooks/swarm-router.js") || fail "router silent exit code"
+out=$(printf '%s\n' '{"prompt":"fix the login bug"}' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/swarm-router.js") || fail "router silent exit code"
 [ -z "$out" ] || fail "router: must be silent without a mention, got: $out"
 
 # malformed stdin -> silent, exit 0
-out=$(printf '%s\n' 'garbage not json' | node "$ROOT/hooks/swarm-router.js") || fail "router malformed exit code"
+out=$(printf '%s\n' 'garbage not json' | CLAUDE_CONFIG_DIR="$TMP" node "$ROOT/hooks/swarm-router.js") || fail "router malformed exit code"
 [ -z "$out" ] || fail "router: must be silent on malformed input, got: $out"
 
 echo "ALL HOOK TESTS PASS"

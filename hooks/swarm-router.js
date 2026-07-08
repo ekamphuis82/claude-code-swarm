@@ -2,7 +2,26 @@
 // codeswarm UserPromptSubmit router (spec item 4): prompt mentions the swarm as a
 // whole word -> ONE routing line so the session loads the director first. Sends
 // nothing anywhere, always exits 0 (never blocks a prompt).
+// Scope-gated: only observes prompt text once the user has run setup once
+// (same ~/.claude/codeswarm.json config session-start.js reads) - keeps this
+// hook from inspecting every prompt in every project for users who never
+// opted into codeswarm.
 'use strict'
+const fs = require('fs')
+const path = require('path')
+const os = require('os')
+
+const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
+const configPath = path.join(configDir, 'codeswarm.json')
+
+let configured = false
+try {
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'))
+  configured = config !== null && typeof config === 'object' && !Array.isArray(config)
+} catch { /* missing or unreadable = not configured, stay silent */ }
+
+if (!configured) process.exit(0)
+
 let raw = ''
 process.stdin.on('data', d => { raw += d })
 process.stdin.on('end', () => {

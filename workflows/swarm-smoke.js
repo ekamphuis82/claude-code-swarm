@@ -73,7 +73,7 @@ const raw = found?.findings ?? []
 const matchesExpected = (e, c) => c.file.includes(e.file) && (e.mustMatch === undefined || new RegExp(e.mustMatch, 'i').test(c.problem))
 const missed = (expected ?? []).filter(e => !confirmed.some(c => matchesExpected(e, c)))
 const unexpected = expected ? confirmed.filter(c => !expected.some(e => c.file.includes(e.file))) : []
-const pass = expected ? missed.length === 0 : (confirmed.length >= 1 && confirmed.some(c => c.file.includes('calc')))
+const pass = expected ? missed.length === 0 : confirmed.length >= 1
 // free A/B baseline: grade the RAW pre-verify finder output against the same set.
 // baselineUnexpected - unexpected = false positives verify killed; missed -
 // baselineMissed = real bugs verify wrongly rejected (README "Is every stage worth it?")

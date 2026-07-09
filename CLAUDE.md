@@ -1,8 +1,8 @@
 # codeswarm — repo context
 
-Claude Code plugin: multi-agent swarm orchestration (director skill + agents
-+ workflow scripts + two tiny hooks). Plain markdown/JS — no package.json,
-no build step.
+Claude Code plugin: multi-agent swarm orchestration (director skill,
+agents, workflow scripts, two tiny hooks). Plain markdown/JS — no
+package.json, no build step.
 
 ## Dev gate (must pass before any commit)
 

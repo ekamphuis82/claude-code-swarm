@@ -200,7 +200,8 @@ differentiator is `/codeswarm:swarm onboard`: point it at the directory that hol
 repositories and it will
 
 1. **scan** them with parallel inventory agents (languages, frameworks, build
-   tools, CI, conventions — structured output per repo),
+   tools, CI, cross-cutting concerns, code-organization / layout conventions,
+   gotchas — structured output per repo),
 2. **propose** a specialist roster and a convention-skill set for your stack,
    presented as a compact table you can amend (rename, drop, merge, edit
    rules) — nothing is written at this point, and
@@ -208,6 +209,12 @@ repositories and it will
    (`agents/my-*.md`) and convention skills (`skills/my-*/SKILL.md`) directly
    into your local clone of this plugin, following the shape templates in
    `templates/`.
+
+> **The scan can take a while on large codebases.** Onboarding dispatches one
+> inventory agent per repo in parallel, but each reads across its repo's tree
+> to evidence conventions — so with many repos, or a lot of code, the scan
+> step is the slow part. That is expected; let it finish. (The propose and
+> generate steps that follow are quick.)
 
 Already have custom agents of your own (or from other plugins)? Onboard
 takes them into account: the director passes your existing agents along,

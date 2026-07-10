@@ -64,7 +64,7 @@ const EVIDENCED = (nameKey, extra = {}) => ({
   properties: { [nameKey]: { type: 'string' }, evidence: { type: 'string', description: 'file:line (or file) in the repo' }, ...extra },
 })
 const INVENTORY = {
-  type: 'object', required: ['languages', 'frameworks', 'buildTools', 'testFrameworks', 'ci', 'crossCutting', 'gotchas'],
+  type: 'object', required: ['languages', 'frameworks', 'buildTools', 'testFrameworks', 'ci', 'crossCutting', 'codeOrganization', 'gotchas'],
   properties: {
     languages: { type: 'array', items: { type: 'string' } },
     frameworks: { type: 'array', items: EVIDENCED('name', { version: { type: 'string' } }), description: 'only frameworks actually present in dependency files' },
@@ -72,6 +72,7 @@ const INVENTORY = {
     testFrameworks: { type: 'array', items: EVIDENCED('name', { runCommand: { type: 'string', description: 'exact command that runs this suite' } }) },
     ci: { type: 'string', description: 'CI system + config file, or "none"' },
     crossCutting: { type: 'array', items: EVIDENCED('concern'), description: 'auth, i18n, db migrations, realtime, multi-tenancy, a11y gates, deploy shape, ...' },
+    codeOrganization: { type: 'array', items: EVIDENCED('convention'), description: 'code-organization & layout conventions inferred from the actual file tree: package/directory structure (package-by-layer vs package-by-feature), module boundaries, naming patterns, and where a new class/component of a given kind belongs' },
     gotchas: { type: 'array', items: EVIDENCED('rule', { whyLoadBearing: { type: 'string' } }), description: 'non-obvious rules a newcomer would break' },
   },
 }
@@ -233,7 +234,7 @@ if (MODE === 'propose' && hasStacks) {
   phase('Synthesize')
   const rosterPrompt = `Design the specialist roster and convention-skill set for a multi-agent coding swarm from these DECLARED stacks — no repo was scanned, there is no code evidence.
 (1) Stack agents — FEWER but justified: one specialist per genuinely distinct stack/competence; merge stacks one engineer would plausibly own into one agent; never invent an agent no declared stack justifies. Each: name, one-line description, scope (stacks + work owned), evidence, the convention skills it must load, and 3-6 rules of engagement (idiomatic test framework + typical run command for the declared version, seams to respect).
-(2) Convention skills — ONLY rules that carry real information beyond the model's own defaults: version/era pinning (which idiom generation applies at the declared version), choices the ecosystem genuinely contests at that version, and the user's stated house rules from the notes fields. Do NOT restate framework defaults any competent engineer applies unprompted — such a rule is padding, drop it. Tag every rule's scopeTag with the stack name it is scoped to, or "universal".${OVERLAP_CLAUSE}
+(2) Convention skills — ONLY rules that carry real information beyond the model's own defaults: version/era pinning (which idiom generation applies at the declared version), choices the ecosystem genuinely contests at that version, and the user's stated house rules from the notes fields. Do NOT restate framework defaults any competent engineer applies unprompted — such a rule is padding, drop it. If a stack's notes describe a code-organization / layout convention (e.g. package-by-layer vs package-by-feature, directory structure, where a new class/component goes), capture it as a rule tagged "universal" for that stack so new repos inherit it. Tag every rule's scopeTag with the stack name it is scoped to, or "universal".${OVERLAP_CLAUSE}
 EVIDENCE (hard rule): every evidence field must be exactly "stack-default: <stack>@<version>" naming the declared stack that justifies the entry — never a file:line, never an invented reference.
 NAMING (hard rule): every name lowercase kebab-case (a-z, 0-9, hyphens only — no dots, no spaces); the script prefixes every generated name with "my-" itself, do not add it. Never reuse these reserved names: ${[...reserved].sort().join(', ')}.
 Declared stacks:${FENCE('declared stacks', JSON.stringify(stacksList))}${QUIET}`
@@ -259,7 +260,7 @@ Declared stacks:${FENCE('declared stacks', JSON.stringify(stacksList))}${QUIET}`
 if (MODE === 'propose') {
   const inventories = (await parallel(A.repos.map(r => () =>
     agent(
-      `Inventory the repo "${r.name}" at ${r.path} for swarm onboarding. Report ONLY what you can evidence in the repo's actual files: languages; frameworks that actually appear in dependency files (manifests/lockfiles, with versions); build tools; test frameworks WITH the exact commands that run them; CI system + config file; cross-cutting concerns (auth, i18n, db migrations, realtime, multi-tenancy, accessibility gates, deploy shape); and load-bearing gotchas — non-obvious rules a newcomer would break (read CLAUDE.md/AGENTS.md/docs AND verify against code; trust code over markdown). Evidence file:line (or file) for every entry. Do not guess or pad; absent = empty list.${QUIET}`,
+      `Inventory the repo "${r.name}" at ${r.path} for swarm onboarding. Report ONLY what you can evidence in the repo's actual files: languages; frameworks that actually appear in dependency files (manifests/lockfiles, with versions); build tools; test frameworks WITH the exact commands that run them; CI system + config file; cross-cutting concerns (auth, i18n, db migrations, realtime, multi-tenancy, accessibility gates, deploy shape); code-organization & layout conventions — how the codebase is structured (package-by-layer vs package-by-feature, directory/module layout, naming patterns, and where a new class/component of a given kind belongs), inferred from the ACTUAL file tree not just docs; and load-bearing gotchas — non-obvious rules a newcomer would break (read CLAUDE.md/AGENTS.md/docs AND verify against code; trust code over markdown). Evidence file:line (or file) for every entry. Do not guess or pad; absent = empty list.${QUIET}`,
       { label: `inventory:${r.name}`, phase: 'Scan', schema: INVENTORY, effort: 'low', model: 'sonnet' }
     ).then(x => x && { repo: r.name, path: r.path, ...x })
   ))).filter(Boolean)
@@ -271,7 +272,7 @@ if (MODE === 'propose') {
   phase('Synthesize')
   const rosterPrompt = `Design the specialist roster and convention-skill set for a multi-agent coding swarm from these repo inventories.
 (1) Stack agents — FEWER but justified: one specialist per genuinely distinct stack/competence; merge repos sharing a stack into one agent; never invent an agent without inventory evidence. Each: name, one-line description, scope (repos + work owned), evidence, the convention skills it must load, and 3-6 rules of engagement distilled from the inventories (test framework + exact run command, load-bearing gotchas, seams).
-(2) Convention skills — one per coherent rule cluster shared by or critical to the repos. Each: name, one-line description ending in a "Load before ..." trigger, scope, and the rules themselves — EVERY rule tagged "universal" or with the repo name it is scoped to, and carrying its evidence. Only rules grounded in the inventories; do not pad.${OVERLAP_CLAUSE}
+(2) Convention skills — one per coherent rule cluster shared by or critical to the repos. Each: name, one-line description ending in a "Load before ..." trigger, scope, and the rules themselves — EVERY rule tagged "universal" or with the repo name it is scoped to, and carrying its evidence. Only rules grounded in the inventories; do not pad. Treat code-organization / layout conventions (package or directory structure, module boundaries, naming, where a new class/component of a given kind belongs) as FIRST-CLASS rule clusters — a common miss. When a layout is the stack's HOUSE STYLE rather than a one-repo quirk, tag its rules "universal" so a NEW repo in the same stack inherits them (not just the scanned repos), and make sure the stack agent that owns that stack lists the skill.${OVERLAP_CLAUSE}
 NAMING (hard rule): every name lowercase kebab-case (a-z, 0-9, hyphens only — no dots, no spaces); the script prefixes every generated name with "my-" itself, do not add it. Never reuse these reserved names: ${[...reserved].sort().join(', ')}.
 Inventories:${FENCE('repo inventories', JSON.stringify(inventories))}${QUIET}`
   let roster = await agent(rosterPrompt, { label: 'synthesize', phase: 'Synthesize', schema: ROSTER, effort: 'max', ...TOP })

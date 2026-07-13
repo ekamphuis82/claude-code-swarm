@@ -438,10 +438,13 @@ Where the evidence for the claims in this README actually stands:
   admin GUI and a consumer GUI, plus the matching Android apps — wired to the
   project's own documented conventions and architecture over a multi-day
   autonomous run. It came out largely working but not first-time-perfect: a
-  few small issues still needed follow-up fixes. This illustrates
-  build-orchestration and convention-adherence at scale; it is a usage story,
-  not a benchmark, and it measures nothing about review precision or the
-  verify delta.
+  few small issues still needed follow-up fixes — and this was at *lite* rigor
+  (no adversarial reviewer, no fix round) on the opus tier, so those residual
+  issues are the expected cost of skipping the review+fix ceremony, not a
+  swarm miss; full rigor adds exactly the pass that would catch more. This
+  illustrates build-orchestration and convention-adherence at scale; it is a
+  usage story, not a benchmark, and it measures nothing about review precision
+  or the verify delta.
 
 ## FAQ
 

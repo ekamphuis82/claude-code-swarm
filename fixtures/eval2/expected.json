@@ -1,0 +1,6 @@
+[
+  { "file": "bounds.js", "mustMatch": "off.?by.?one|<=|length|undefined|past|out of|bound" },
+  { "file": "clamp.js", "mustMatch": "swap|min|max|revers|argument|order|wrong" },
+  { "file": "async.js", "mustMatch": "foreach|await|async|empty|race|resolve|before|push" },
+  { "file": "falsy.js", "mustMatch": "falsy|zero|\\|\\||\\b0\\b|n/?a|default|guard" }
+]

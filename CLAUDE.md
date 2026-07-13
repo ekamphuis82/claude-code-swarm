@@ -50,9 +50,13 @@ stay tiny, exit 0, offline, no writes.
   plumbing live with `/codeswarm:swarm smoke` (plus the graded
   `fixtures/eval` run) before trusting the scripts; a passing smoke records
   `lastSmokeVersion` in the config and the SessionStart canary nudges when
-  the running version drifts from it. Last live proof: 2026-07-06 on
-  Claude Code 2.1.201, 21 graded runs that day (log total). Run 1 (predates
-  the eval log): 5/5 recall, 0 false positives, baseline identical. The
+  the running version drifts from it. Last live proof: 2026-07-13 on
+  Claude Code 2.1.207 (`fixtures/eval2` graded: 4/4, 0 FP, pass). NOTE: the
+  current `codeswarm-eval-log.jsonl` on disk holds ONLY that single 2026-07-13
+  run — the 2026-07-06 batch described next was NOT retained in the live log
+  (ran on another machine/config-dir), so the 21-run figures below are
+  documented history, not a live log total. Run 1 (predates the eval log):
+  5/5 recall, 0 false positives, baseline identical. The
   fixture then gained two pure false-positive trap files (`jobs.js`, then
   `schedule.js`); a re-baseline run scored 3/5 recall (graded FAIL,
   `lastSmokeVersion` untouched) and produced the first measured verify
@@ -64,9 +68,10 @@ stay tiny, exit 0, offline, no writes.
   recall on this fixture is uneven per bug (`cart.js`/`stats.js` missed
   13/20, `dates.js` missed 0/20) — a property of the cheapest tier
   `swarm-smoke.js` deliberately hardcodes, not a claim about
-  `swarm-review.js` (session-model finder, sonnet verify). Log totals after
-  all 21 runs: 1 false positive killed, 1 real bug wrongly rejected (both
-  single anecdotes — see the honesty section in README). Every graded run
+  `swarm-review.js` (session-model finder, sonnet verify). Reported totals
+  after those 21 runs (documented history, NOT in the current log): 1 false
+  positive killed, 1 real bug wrongly rejected (both single anecdotes — see
+  the honesty section in README). Every graded run
   is recorded via `tools/record-eval.js` into `codeswarm-eval-log.jsonl`
   next to the config (accumulating A/B evidence; the tool also owns the
   `lastSmokeVersion` write).
@@ -97,11 +102,13 @@ stay tiny, exit 0, offline, no writes.
   never merge; an occasional double-verify of the same reworded finding is
   the accepted cost.
 - The verify layer's value is deliberately stated as THIN evidence (README
-  "What's measured vs. designed"): the log holds two measured deltas in
-  OPPOSITE directions (one false positive killed, one real bug wrongly
-  rejected) — anecdotes, not a trend, and repeating the SAME fixture adds
-  correlated samples, not independent evidence (see the 2026-07-06 batch
-  note above). The only real fix is more/varied fixtures graded over time
+  "What's measured vs. designed"): the eval evidence to date holds two
+  measured deltas in OPPOSITE directions (one false positive killed, one real
+  bug wrongly rejected — from the documented 2026-07-06 batch, NOT retained in
+  the current log, which now holds one null-delta run) — anecdotes, not a
+  trend, and repeating the SAME fixture adds correlated samples, not
+  independent evidence (see the 2026-07-06 batch note above). The only real
+  fix is more/varied fixtures graded over time
   — never reword the README claim stronger without log evidence, and never
   "fix" the honesty section away.
 - README repeats context that also lives in `docs/` on purpose (cost

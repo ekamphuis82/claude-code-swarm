@@ -21,7 +21,7 @@ which are still design bets.
 
 ## Quickstart
 
-From clone to your first verified review in about five minutes. Check the
+From clone to your first verified review. Check the
 [requirements](#requirements) first — a recent Claude Code with the Workflow
 tool, plus Node.js.
 
@@ -401,34 +401,47 @@ high-stakes.
 Where the evidence for the claims in this README actually stands:
 
 - **Measured:** that the plumbing works end to end (`/codeswarm:swarm
-  smoke`), and finder recall/precision on the graded fixture
-  (`fixtures/eval`: five planted bugs across distinct failure classes, two
-  false-positive trap files, an `expected.json` manifest). Every graded run
-  also grades the RAW pre-verify finder output as a baseline and records
-  both in `codeswarm-eval-log.jsonl` next to the config; the accumulated
-  verified-vs-baseline delta across that log is the A/B evidence for the
-  verify layer.
+  smoke`), and finder recall/precision on the graded fixtures (`fixtures/eval`:
+  five planted bugs across distinct failure classes, two false-positive trap
+  files, an `expected.json` manifest; `fixtures/eval2`: four more planted bugs
+  in disjoint classes plus a trap file, added to break the single-fixture
+  correlation problem). Every graded run also grades the RAW pre-verify finder
+  output as a baseline and records both in `codeswarm-eval-log.jsonl` next to
+  the config; the accumulated verified-vs-baseline delta across that log is the
+  A/B evidence for the verify layer.
 - **Not yet demonstrated:** that the verify layer earns its cost as a
-  trend. The eval log (21 graded runs as of 2026-07-06, mostly a
-  same-fixture batch — correlated samples, not independent evidence) holds
-  measured deltas in BOTH directions: 1 false positive killed (the raw
-  finder flagged a since-fixed unintended bug in a trap file, verification
-  correctly killed it) and 1 real bug wrongly rejected (a confirmed finding
-  the raw finder got right that verification then rejected). Two
-  anecdotes, opposite signs, net exactly zero trend either way. Independent
-  checks catching plausible-but-wrong findings is the design bet this
-  plugin is built on, and the eval log exists to test that bet — not to
-  presume it. Until the log accumulates across VARIED fixtures, read
-  "independently verified findings" as a description of the mechanism, not
-  a measured guarantee that re-checking is never needed. The same batch
-  shows finder recall on this fixture is uneven per bug at the cheapest
-  model tier (`swarm-smoke.js` hardcodes haiku) — 2/20 clean passes, two
-  bug classes missed in 13/20 runs, one missed in 0/20 — a property of that
-  tier and this fixture, not a claim about `swarm-review.js`'s recall on
-  real code (session-model finder, sonnet verify).
-- **Anecdotal:** the 20-confirmed-bugs example above shows finder utility
+  trend. The eval log on disk currently holds a single graded run
+  (`fixtures/eval2`, 2026-07-13): 4/4 planted bugs found, zero false
+  positives, and — because the raw finder was already clean — a zero verify
+  delta (nothing to kill, nothing wrongly rejected). One null sample is not a
+  trend. An earlier 21-run batch (2026-07-06) is described in `CLAUDE.md` and
+  `fixtures/eval/README.md` but is NOT present in the current log file (it ran
+  on another machine/config-dir and was not retained), so treat it as
+  documented history, not a live log total; it reportedly produced deltas in
+  BOTH directions — 1 false positive killed and 1 real bug wrongly rejected —
+  two anecdotes, opposite signs, net zero. Independent checks catching
+  plausible-but-wrong findings is the design bet this plugin is built on, and
+  the eval log exists to test that bet — not to presume it. Until the log
+  accumulates across VARIED fixtures, read "independently verified findings"
+  as a description of the mechanism, not a measured guarantee that re-checking
+  is never needed. That 2026-07-06 batch also showed finder recall on the JS
+  fixture is uneven per bug at the cheapest model tier (`swarm-smoke.js`
+  hardcodes haiku) — 2/20 clean passes, two bug classes missed in 13/20 runs,
+  one missed in 0/20 — a property of that tier and fixture, not a claim about
+  `swarm-review.js`'s recall on real code (session-model finder, sonnet
+  verify).
+- **Anecdotal:** two real-world signals, neither a measured claim about the
+  verify layer. (1) The 20-confirmed-bugs example above shows finder utility
   on a real codebase; it says nothing about the verify delta, and a single
-  fixture is not a real-world workload.
+  fixture is not a real-world workload. (2) Driven from a handful of prompts,
+  the swarm built a multi-tenant SaaS end to end — a Spring Boot backend, an
+  admin GUI and a consumer GUI, plus the matching Android apps — wired to the
+  project's own documented conventions and architecture over a multi-day
+  autonomous run. It came out largely working but not first-time-perfect: a
+  few small issues still needed follow-up fixes. This illustrates
+  build-orchestration and convention-adherence at scale; it is a usage story,
+  not a benchmark, and it measures nothing about review precision or the
+  verify delta.
 
 ## FAQ
 

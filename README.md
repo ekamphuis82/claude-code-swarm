@@ -413,9 +413,10 @@ Where the evidence for the claims in this README actually stands:
   accumulated verified-vs-baseline delta across that log is the A/B evidence
   for the verify layer.
 - **Not yet demonstrated:** that the verify layer earns its cost as a
-  trend. The eval log on disk holds three genuine graded runs (2026-07-09
-  `eval`; 2026-07-15 `eval2` and `eval`), and every one has a ZERO verify
-  delta — nothing killed, nothing wrongly rejected. Three null samples are
+  trend. Every genuine graded run in the live log to date (across
+  `fixtures/eval`, `eval2` and `eval3`) has a ZERO verify delta — nothing
+  killed, nothing wrongly rejected; run `tools/record-eval.js` output or read
+  the log for the current run count and totals. A handful of null samples is
   not a trend. An earlier 21-run batch (2026-07-06) is described in
   `CLAUDE.md` and `fixtures/eval/README.md`; a backfilled copy of it once sat
   in the live log but was purged on 2026-07-15 (19/20 lines shared an

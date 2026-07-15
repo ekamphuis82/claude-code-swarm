@@ -53,9 +53,11 @@ stay tiny, exit 0, offline, no writes.
   the running version drifts from it. Last live proof: 2026-07-15 on
   Claude Code 2.1.210 (`fixtures/smoke` plumbing pass; `fixtures/eval2`
   graded 4/4 0 FP pass; `fixtures/eval` graded 3/5 — the two documented
-  haiku misses). NOTE on the live log: `codeswarm-eval-log.jsonl` now holds
-  exactly THREE genuine graded runs (2026-07-09 eval, 2026-07-15 eval2 +
-  eval), and every one has a ZERO verify delta. On 2026-07-15 the log was
+  haiku misses; `fixtures/eval3` graded 2/2 pass). NOTE on the live log:
+  every genuine graded run in `codeswarm-eval-log.jsonl` to date (across
+  eval, eval2, eval3) has a ZERO verify delta — read the log or
+  `record-eval.js` output for the current count/totals, never a frozen
+  number here. On 2026-07-15 the log was
   purged of a 20-line `2026-07-06` batch that had been backfilled into it
   (19/20 lines shared an identical placeholder `outputTokens`, so they were
   reconstructed history, not independent live runs); a backup sits next to

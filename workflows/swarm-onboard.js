@@ -211,8 +211,8 @@ const normalizeRoster = roster => {
     const skills = []
     for (const ref of a.skills ?? []) {
       const gen = myName(ref)
-      const bare = safeName(ref)
-      const resolved = skillsByName.has(gen) ? gen : (shippedSkillRefs.has(bare) ? bare : null)
+      const bareRef = safeName(ref)
+      const resolved = skillsByName.has(gen) ? gen : (shippedSkillRefs.has(bareRef) ? bareRef : null)
       if (!resolved) { log(`agent "${name}": dropping skill ref "${ref}" — resolves to neither a generated skill nor a shipped one`); continue }
       if (!skills.includes(resolved)) skills.push(resolved)
     }

@@ -83,6 +83,7 @@ less re-reading — see [Cost](workflows.md) and the README cost section.
 | `workflows/` | the seven workflow scripts |
 | `hooks/` | two Node hook scripts, their config and pipe tests |
 | `runner/` | standalone runner: harness + claude-driver + journal + CLI (Workflow-tool fallback) |
+| `tools/` | `record-eval.js` — owns the eval-log append and the `lastSmokeVersion` config write (+ its test) |
 | `templates/` | templates onboard uses to generate agents/skills |
 | `fixtures/smoke/` | planted-bug fixture for `/codeswarm:swarm smoke` |
-| `fixtures/eval/` | graded five-bug fixture + false-positive trap file for the A/B eval |
+| `fixtures/eval/`, `eval2/`, `eval3/` | graded eval fixtures (planted bugs + false-positive trap files) for recall/precision and the A/B verify delta; `eval3` is precision-weighted |

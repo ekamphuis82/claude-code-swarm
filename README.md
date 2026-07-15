@@ -405,21 +405,26 @@ Where the evidence for the claims in this README actually stands:
   five planted bugs across distinct failure classes, two false-positive trap
   files, an `expected.json` manifest; `fixtures/eval2`: four more planted bugs
   in disjoint classes plus a trap file, added to break the single-fixture
-  correlation problem). Every graded run also grades the RAW pre-verify finder
-  output as a baseline and records both in `codeswarm-eval-log.jsonl` next to
-  the config; the accumulated verified-vs-baseline delta across that log is the
-  A/B evidence for the verify layer.
+  correlation problem; `fixtures/eval3`: two more disjoint bugs plus a
+  precision-weighted trap file — correct code shaped like notorious bugs,
+  built specifically to draw a false positive the verify layer can kill).
+  Every graded run also grades the RAW pre-verify finder output as a baseline
+  and records both in `codeswarm-eval-log.jsonl` next to the config; the
+  accumulated verified-vs-baseline delta across that log is the A/B evidence
+  for the verify layer.
 - **Not yet demonstrated:** that the verify layer earns its cost as a
-  trend. The eval log on disk currently holds a single graded run
-  (`fixtures/eval2`, 2026-07-13): 4/4 planted bugs found, zero false
-  positives, and — because the raw finder was already clean — a zero verify
-  delta (nothing to kill, nothing wrongly rejected). One null sample is not a
-  trend. An earlier 21-run batch (2026-07-06) is described in `CLAUDE.md` and
-  `fixtures/eval/README.md` but is NOT present in the current log file (it ran
-  on another machine/config-dir and was not retained), so treat it as
-  documented history, not a live log total; it reportedly produced deltas in
-  BOTH directions — 1 false positive killed and 1 real bug wrongly rejected —
-  two anecdotes, opposite signs, net zero. Independent checks catching
+  trend. The eval log on disk holds three genuine graded runs (2026-07-09
+  `eval`; 2026-07-15 `eval2` and `eval`), and every one has a ZERO verify
+  delta — nothing killed, nothing wrongly rejected. Three null samples are
+  not a trend. An earlier 21-run batch (2026-07-06) is described in
+  `CLAUDE.md` and `fixtures/eval/README.md`; a backfilled copy of it once sat
+  in the live log but was purged on 2026-07-15 (19/20 lines shared an
+  identical placeholder token count — reconstructed history, not independent
+  live runs), so treat it as documented history, not a live log total. It
+  reportedly produced deltas in BOTH directions — 1 false positive killed and
+  1 real bug wrongly rejected — two anecdotes, opposite signs, net zero, and
+  both from data no longer on disk. So there is currently NO live A/B
+  evidence in either direction. Independent checks catching
   plausible-but-wrong findings is the design bet this plugin is built on, and
   the eval log exists to test that bet — not to presume it. Until the log
   accumulates across VARIED fixtures, read "independently verified findings"

@@ -50,31 +50,41 @@ stay tiny, exit 0, offline, no writes.
   plumbing live with `/codeswarm:swarm smoke` (plus the graded
   `fixtures/eval` run) before trusting the scripts; a passing smoke records
   `lastSmokeVersion` in the config and the SessionStart canary nudges when
-  the running version drifts from it. Last live proof: 2026-07-13 on
-  Claude Code 2.1.207 (`fixtures/eval2` graded: 4/4, 0 FP, pass). NOTE: the
-  current `codeswarm-eval-log.jsonl` on disk holds ONLY that single 2026-07-13
-  run — the 2026-07-06 batch described next was NOT retained in the live log
-  (ran on another machine/config-dir), so the 21-run figures below are
-  documented history, not a live log total. Run 1 (predates the eval log):
-  5/5 recall, 0 false positives, baseline identical. The
-  fixture then gained two pure false-positive trap files (`jobs.js`, then
-  `schedule.js`); a re-baseline run scored 3/5 recall (graded FAIL,
-  `lastSmokeVersion` untouched) and produced the first measured verify
-  delta (1 FP killed). A follow-up 20-run batch at the haiku tier (ad hoc
-  script, not shipped) surfaced two things now recorded in
-  `fixtures/eval/README.md`: `jobs.js` had an UNINTENDED real bug
-  (`firstSuccessful([])` threw `undefined`) that verify correctly
-  confirmed as real 4/20 times — fixed, not a verify failure; and haiku-tier
-  recall on this fixture is uneven per bug (`cart.js`/`stats.js` missed
-  13/20, `dates.js` missed 0/20) — a property of the cheapest tier
-  `swarm-smoke.js` deliberately hardcodes, not a claim about
-  `swarm-review.js` (session-model finder, sonnet verify). Reported totals
-  after those 21 runs (documented history, NOT in the current log): 1 false
-  positive killed, 1 real bug wrongly rejected (both single anecdotes — see
-  the honesty section in README). Every graded run
-  is recorded via `tools/record-eval.js` into `codeswarm-eval-log.jsonl`
-  next to the config (accumulating A/B evidence; the tool also owns the
-  `lastSmokeVersion` write).
+  the running version drifts from it. Last live proof: 2026-07-15 on
+  Claude Code 2.1.210 (`fixtures/smoke` plumbing pass; `fixtures/eval2`
+  graded 4/4 0 FP pass; `fixtures/eval` graded 3/5 — the two documented
+  haiku misses). NOTE on the live log: `codeswarm-eval-log.jsonl` now holds
+  exactly THREE genuine graded runs (2026-07-09 eval, 2026-07-15 eval2 +
+  eval), and every one has a ZERO verify delta. On 2026-07-15 the log was
+  purged of a 20-line `2026-07-06` batch that had been backfilled into it
+  (19/20 lines shared an identical placeholder `outputTokens`, so they were
+  reconstructed history, not independent live runs); a backup sits next to
+  the config. The 2026-07-06 figures below are therefore DOCUMENTED HISTORY
+  only, not live-log evidence. Run 1: 5/5 recall, 0 false positives,
+  baseline identical. The fixture then gained two pure false-positive trap
+  files (`jobs.js`, then `schedule.js`); a re-baseline run scored 3/5 recall
+  (graded FAIL) and produced the first reported verify delta (1 FP killed).
+  A follow-up 20-run batch at the haiku tier (ad hoc script, not shipped)
+  surfaced two things now recorded in `fixtures/eval/README.md`: `jobs.js`
+  had an UNINTENDED real bug (`firstSuccessful([])` threw `undefined`) that
+  verify correctly confirmed as real 4/20 times — fixed, not a verify
+  failure; and haiku-tier recall on this fixture is uneven per bug
+  (`cart.js`/`stats.js` missed 13/20, `dates.js` missed 0/20) — a property
+  of the cheapest tier `swarm-smoke.js` deliberately hardcodes, not a claim
+  about `swarm-review.js` (session-model finder, sonnet verify). Reported
+  totals from that documented 2026-07-06 batch (NOT in the live log): 1
+  false positive killed, 1 real bug wrongly rejected — the only two measured
+  deltas ever, opposite signs, and both from data no longer on disk; the
+  three genuine live runs are all zero-delta, so there is currently NO live
+  A/B evidence either way (single anecdotes — see the honesty section in
+  README). A third fixture, `fixtures/eval3`, is precision-weighted: its
+  `guards.js` is correct code shaped like notorious bugs (including the
+  correct-form twin of `eval2`'s real `<=` off-by-one) to make a finder emit
+  a false positive the verify layer can kill — the fixture built to make the
+  delta non-zero over repeated runs. Every graded run is recorded via
+  `tools/record-eval.js` into `codeswarm-eval-log.jsonl` next to the config
+  (accumulating A/B evidence; the tool also owns the `lastSmokeVersion`
+  write).
 - The Workflow-tool dependency has a shipped fallback: the **standalone
   runner** (`runner/`) executes the workflow scripts UNCHANGED via
   `claude -p` subprocesses (the public headless interface), with its own

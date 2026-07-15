@@ -87,7 +87,7 @@ test('swarm-drift.js scan prompt carries the stack-default marker verbatim', () 
 })
 
 // --- prompt-injection fence (NONCE + FENCE) ---------------------------------
-const FENCE_SCRIPTS = ['swarm-refactor.js', 'swarm-drift.js', 'swarm-research.js']
+const FENCE_SCRIPTS = ['swarm-refactor.js', 'swarm-drift.js', 'swarm-research.js', 'swarm-review.js']
 const nonceLine = s => s.match(/^const NONCE = .+$/m)?.[0]
 const fenceLine = s => s.match(/^const FENCE = .+$/m)?.[0]
 // the source-description parenthetical may vary per script; everything else is

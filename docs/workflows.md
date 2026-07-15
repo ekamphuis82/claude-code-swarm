@@ -100,7 +100,8 @@ runs on an unseen proposal.
 | Arg | Required | Notes |
 |---|---|---|
 | `pluginDir` | yes | absolute path to your plugin clone (generation target) |
-| `repos` | propose mode | `[{name, path}]` |
+| `repos` | propose mode | `[{name, path}]` — scan mode (strongly recommended). Mutually exclusive with `stacks`; passing both throws |
+| `stacks` | propose mode | `[{name, version?, notes?}]` — stack-default fallback when you have no repos to scan (or decline the scan); generates a version-pinned roster with a visible stack-default marker, no repo-derived conventions. Alternative to `repos` |
 | `mode` | no | `propose` (default, writes nothing) / `generate` |
 | `proposal` | generate mode | the user-approved proposal object |
 | `topModel` | no | caps inventory/synthesis tier |

@@ -1,0 +1,4 @@
+[
+  { "file": "grid.js", "mustMatch": "reference|shared|same|alias|fill|copy|clone" },
+  { "file": "tags.js", "mustMatch": "\\.size|\\bsize\\b|length|undefined" }
+]

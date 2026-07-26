@@ -50,10 +50,17 @@ stay tiny, exit 0, offline, no writes.
   plumbing live with `/codeswarm:swarm smoke` (plus the graded
   `fixtures/eval` run) before trusting the scripts; a passing smoke records
   `lastSmokeVersion` in the config and the SessionStart canary nudges when
-  the running version drifts from it. Last live proof: 2026-07-15 on
-  Claude Code 2.1.210 (`fixtures/smoke` plumbing pass; `fixtures/eval2`
-  graded 4/4 0 FP pass; `fixtures/eval` graded 3/5 — the two documented
-  haiku misses; `fixtures/eval3` graded 2/2 pass). NOTE on the live log:
+  the running version drifts from it. Last live proof: 2026-07-26 on
+  Claude Code 2.1.220 (`fixtures/eval3` graded 2/2, 0 FP, pass), from a
+  session whose model was Opus 5 — which proves the PLUMBING under that
+  session (script parse, dispatch, schema-forced output, phase/token
+  accounting), not top-tier finding: `swarm-smoke.js` pins BOTH its finder
+  and its verifier to haiku, so no smoke run has ever exercised the top
+  tier. Prior proof: 2026-07-15 on 2.1.210 (`fixtures/smoke` plumbing pass;
+  `fixtures/eval2` graded 4/4 0 FP pass; `fixtures/eval` graded 3/5 — the
+  two documented haiku misses; `fixtures/eval3` graded 2/2 pass), recorded
+  against a different config dir than the one this machine reads.
+  NOTE on the live log:
   every genuine graded run in `codeswarm-eval-log.jsonl` to date (across
   eval, eval2, eval3) has a ZERO verify delta — read the log or
   `record-eval.js` output for the current count/totals, never a frozen
@@ -76,10 +83,10 @@ stay tiny, exit 0, offline, no writes.
   about `swarm-review.js` (session-model finder, sonnet verify). Reported
   totals from that documented 2026-07-06 batch (NOT in the live log): 1
   false positive killed, 1 real bug wrongly rejected — the only two measured
-  deltas ever, opposite signs, and both from data no longer on disk; the
-  three genuine live runs are all zero-delta, so there is currently NO live
-  A/B evidence either way (single anecdotes — see the honesty section in
-  README). A third fixture, `fixtures/eval3`, is precision-weighted: its
+  deltas ever, opposite signs, and both from data no longer on disk; every
+  genuine live run is zero-delta, so there is currently NO live A/B evidence
+  either way (single anecdotes — see the honesty section in README). Read
+  the log for the run count; never freeze one here. A third fixture, `fixtures/eval3`, is precision-weighted: its
   `guards.js` is correct code shaped like notorious bugs (including the
   correct-form twin of `eval2`'s real `<=` off-by-one) to make a finder emit
   a false positive the verify layer can kill — the fixture built to make the

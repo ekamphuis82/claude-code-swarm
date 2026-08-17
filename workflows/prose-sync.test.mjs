@@ -93,7 +93,7 @@ const CONFIG_FACTS = [
   },
   { key: 'accessibility', default: '(AA)', readers: [['swarm-review.js', "A.a11yLevel) ? A.a11yLevel : 'AA'"]] },
   { key: 'retrospect', default: '(full)', readers: [['swarm-build.js', "includes(A.retrospect) ? A.retrospect : 'full'"]] },
-  { key: 'rigor', default: '(lite)', readers: [['swarm-build.js', "A.rigor === 'full' ? 'full' : 'lite'"], ['swarm-review.js', "A.rigor === 'full'"]] },
+  { key: 'rigor', default: '(lite)', readers: [['swarm-build.js', "['lite', 'full'].includes(A.rigor)"], ['swarm-review.js', "['lite', 'full'].includes(A.rigor)"]] },
   {
     key: 'adHocSpecialists', default: '(false)',
     readers: [['../hooks/session-start.js', 'config.adHocSpecialists'], ['../hooks/swarm-router.js', 'config.adHocSpecialists'], ['swarm-onboard.js', 'A.adHocSpecialists']],

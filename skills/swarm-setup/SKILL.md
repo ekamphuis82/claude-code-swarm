@@ -51,11 +51,11 @@ to re-run: a subscription change (raise or drop the top-model cap).
      review gates) carry no model and inherit the session model. Whatever
      model the user is running the session on is what the top tier uses.
    - a **family alias** — `"opus"` / `"sonnet"` / `"haiku"` / `"fable"`.
-     This tracks the LATEST release of that family: `"opus"` runs Opus 4.8
+     This tracks the LATEST release of that family: `"opus"` runs Opus 5
      today and auto-moves to a newer Opus when one ships. Recommended for
      "always use the best Opus" without re-editing config. Use `"sonnet"`
      to cap top-tier cost on a limited subscription.
-   - a **pinned id** — e.g. `"claude-opus-4-7"` / `"claude-opus-4-6"`.
+   - a **pinned id** — e.g. `"claude-opus-4-8"` / `"claude-opus-4-7"`.
      Freezes the top tier to that exact version (reproducibility, or
      staying on a version you have validated); it will NOT auto-upgrade.
    Any model name Claude Code accepts is valid. Mechanical/verify tiers are

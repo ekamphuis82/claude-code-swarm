@@ -82,10 +82,10 @@ lap('scan')
 phase('Synthesize')
 if (!scans.length) return { drifts: [], failedRepos, note: failedRepos.length ? 'no drift found in scanned repos; failedRepos were NOT verified' : 'no drift found', tokens: tokens() }
 const mergePrompt = `Merge and dedup these convention-drift reports into one ranked list (breaking first, then outdated; drop cosmetic duplicates). PRESERVE repo attribution: when the same drift was reported by multiple repos, comma-join their repo values in the merged entry's repo field; never drop an attribution. For each surviving drift add a one-line suggested skill edit in suggestedEdit.${QUIET}${FENCE('drift scan reports', JSON.stringify(scans))}`
-let merged = await agent(mergePrompt, { label: 'merge', phase: 'Synthesize', schema: MERGED, effort: 'max', ...TOP })
+let merged = await agent(mergePrompt, { label: 'merge', phase: 'Synthesize', schema: MERGED, effort: 'xhigh', ...TOP })
 if (!merged) {
   log('merge null — one retry')
-  merged = await agent(mergePrompt, { label: 'merge-retry', phase: 'Synthesize', schema: MERGED, effort: 'max', ...TOP })
+  merged = await agent(mergePrompt, { label: 'merge-retry', phase: 'Synthesize', schema: MERGED, effort: 'xhigh', ...TOP })
 }
 lap('synthesize')
 if (!merged) { log('merge agent failed twice — returning raw list'); return { drifts: scans, failedRepos, note: 'merge agent failed twice — raw unmerged list', tokens: tokens() } }

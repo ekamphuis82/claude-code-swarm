@@ -3,7 +3,7 @@
 // (runner/harness.js — the C1-C8 implementation, not a mock) with a
 // scenario driver forcing paths the harness-contract fakes never reach:
 // their schema-derived fakes return the FIRST enum value (PASS/APPROVE),
-// so the fix round, re-test, re-review and the fatal-stop gate are dead
+// so the fix round, re-test and the fatal-stop gate are dead
 // code there. build-helpers.test.mjs covers the pure logic; THIS file
 // proves the dispatch wiring around it.
 // Run: node --test workflows/build-wiring.test.mjs
@@ -37,7 +37,10 @@ function makeDriver (calls, { retestVerdict }) {
     if (label.startsWith('review:')) return out({ verdict: 'CHANGES-REQUESTED', findings: ['a.js:1 — major — off by one — use <='] })
     if (label.startsWith('fix:')) return out({ filesChanged: ['a.js', 'b.js'], testsRun: 'npm t', testOutput: 'all pass', risks: ['r2'] })
     if (label.startsWith('re-test:')) return out({ suiteResult: retestVerdict === 'PASS' ? '5 passed' : 'still 1 failed', edgeCasesTried: [], verdict: retestVerdict })
-    if (label.startsWith('re-review:')) return out({ verdict: 'APPROVE', findings: [] })
+    // NO re-review branch on purpose: the round was removed. The harness swallows
+    // a driver throw into a null result, so the throw below is NOT the guard —
+    // the guards are `calls.push(label)` at driver entry (asserted absent) plus
+    // the reviewStaleAfterFix assertion, which is undefined on a revert.
     if (label === 'retrospect') return out({ coherent: true, findings: [] })
     throw new Error(`unexpected label: ${label}`)
   }
@@ -54,7 +57,7 @@ async function run (tasks, opts) {
   return { calls, state, result: JSON.parse(JSON.stringify(result)) }
 }
 
-test('fix round wiring: merge, supersede, re-test, re-review, retrospect; same-stage tasks overlap', async () => {
+test('fix round wiring: merge, supersede, re-test, retrospect; same-stage tasks overlap', async () => {
   const tasks = [
     { id: 'T1', title: 't1', brief: 'b1', agentType: 'codeswarm:x', stage: 's' },
     { id: 'T2', title: 't2', brief: 'b2', agentType: 'codeswarm:x', stage: 's' },
@@ -66,10 +69,14 @@ test('fix round wiring: merge, supersede, re-test, re-review, retrospect; same-s
     assert.deepEqual(r.implemented.risks, ['r1', 'r2'], `${id}: risks union`)
     assert.equal(r.implemented.testOutput, 'all pass', `${id}: fix report supersedes the pre-fix one`)
     assert.equal(r.testerReport.verdict, 'PASS', `${id}: re-test verdict replaces the stale FAIL`)
-    assert.equal(r.reviewVerdict.verdict, 'APPROVE', `${id}: re-review verdict lands`)
-    for (const p of ['impl:', 'test:', 'review:', 'fix:', 're-test:', 're-review:']) {
+    // re-review round removed: the retained verdict is the PRE-fix one, and the
+    // staleness flag is what tells the director not to read it as final
+    assert.equal(r.reviewVerdict.verdict, 'CHANGES-REQUESTED', `${id}: pre-fix review verdict retained`)
+    assert.equal(r.reviewStaleAfterFix, true, `${id}: pre-fix verdict flagged stale`)
+    for (const p of ['impl:', 'test:', 'review:', 'fix:', 're-test:']) {
       assert.ok(calls.includes(`${p}${id}`), `${id}: ${p} dispatched`)
     }
+    assert.ok(!calls.some(c => c.startsWith('re-review:')), `${id}: no re-review round is dispatched`)
   }
   assert.ok(calls.includes('retrospect'), 'retrospect runs over 2 delivered tasks')
   assert.equal(result.retrospect.coherent, true)

@@ -238,7 +238,11 @@ const VERIFY = ['normal', 'strict'].includes(A.verify) ? A.verify : 'normal'
 const STRICT = VERIFY === 'strict' || A.thorough === true
 // rigor default 'lite' (spec item 28): single-lens verify, no severity check —
 // still one independent existence check per finding
-const LITE = !(A.rigor === 'full' || STRICT)
+// Allowlist rather than `=== 'full'`: an unrecognised value silently fell
+// through to lite, so a config typo was indistinguishable from a deliberate default.
+const RIGOR = ['lite', 'full'].includes(A.rigor) ? A.rigor : 'lite'
+if (A.rigor != null && A.rigor !== RIGOR) log(`rigor "${A.rigor}" is not a valid value (lite|full) — falling back to lite${STRICT ? ' (strict/thorough still forces the full-tier verify)' : ''}`)
+const LITE = !(RIGOR === 'full' || STRICT)
 const budgetTight = (budget.total && budget.remaining() < 150_000) || LITE
 if (LITE) log('lite rigor — single-lens verify, no severity check (escalate with --thorough / --verify=strict)')
 else if (budget.total && budget.remaining() < 150_000) log('budget low — single-lens verify for all severities')

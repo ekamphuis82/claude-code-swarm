@@ -30,7 +30,10 @@ const TOP = A.topModel ? { model: A.topModel } : {}
 // rigor default 'lite' (spec item 28): implement + ONE independent test per task
 // (~1.5-2x raw) — the tester always gates correctness; 'full' adds adversarial
 // review + retrospect (~3-4x) for work where a bug is expensive
-const RIGOR = A.rigor === 'full' ? 'full' : 'lite'
+// Allowlist rather than `=== 'full'`: an unrecognised value silently fell
+// through to lite, so a config typo was indistinguishable from a deliberate default.
+const RIGOR = ['lite', 'full'].includes(A.rigor) ? A.rigor : 'lite'
+if (A.rigor != null && A.rigor !== RIGOR) log(`rigor "${A.rigor}" is not a valid value (lite|full) — using lite`)
 const LITE = RIGOR === 'lite'
 // retrospect full|light|off (spec item 12); lite rigor forces off
 const RETRO_MODE = LITE ? 'off' : (['full', 'light', 'off'].includes(A.retrospect) ? A.retrospect : 'full')
@@ -124,11 +127,13 @@ async function runTask(t) {
   const skipReview = t.effort === 'low' || LITE
   const reviewBrief = `Adversarially review the diff for task "${t.title}" in repo ${A.repo} (files: ${JSON.stringify(impl.filesChanged)}). Tester verdict: ${test?.verdict ?? 'unknown'}.${QUIET}`
   let review = null
+  // set when a fix round lands: `review` then describes the PRE-fix diff
+  let reviewStaleAfterFix = false
   if (skipReview) {
     log(`task ${t.id}: effort=low — adversarial review skipped (tester-only gate)`)
   } else {
-    review = await agent(reviewBrief, { label: `review:${t.id}`, phase: 'Review', schema: REVIEW, agentType: 'codeswarm:swarm-reviewer', effort: 'max', ...TOP })
-    if (!review) { log(`task ${t.id}: reviewer null — one retry`); review = await agent(reviewBrief, { label: `review-retry:${t.id}`, phase: 'Review', schema: REVIEW, agentType: 'codeswarm:swarm-reviewer', effort: 'max', ...TOP }) }
+    review = await agent(reviewBrief, { label: `review:${t.id}`, phase: 'Review', schema: REVIEW, agentType: 'codeswarm:swarm-reviewer', effort: 'xhigh', ...TOP })
+    if (!review) { log(`task ${t.id}: reviewer null — one retry`); review = await agent(reviewBrief, { label: `review-retry:${t.id}`, phase: 'Review', schema: REVIEW, agentType: 'codeswarm:swarm-reviewer', effort: 'xhigh', ...TOP }) }
   }
 
   // one fix round (gate + findings composition: build-helpers above)
@@ -145,17 +150,17 @@ async function runTask(t) {
       const retestBrief = `Re-VERIFY task "${t.title}" in repo ${A.repo} AFTER a fix round (changed files now: ${JSON.stringify(impl.filesChanged)}). Re-run the suite and re-try the edge cases.${GATE}${QUIET}`
       test = await agent(retestBrief, { label: `re-test:${t.id}`, phase: 'Verify', schema: TESTREP, agentType: 'codeswarm:swarm-tester', model: 'sonnet' })
       if (!test) { log(`task ${t.id}: re-tester null — one retry`); test = await agent(retestBrief, { label: `re-test-retry:${t.id}`, phase: 'Verify', schema: TESTREP, agentType: 'codeswarm:swarm-tester', model: 'sonnet' }) }
-      // null re-review keeps the pre-fix verdict — never silently upgrade unreviewed fix code
-      if (!skipReview) {
-        const rereviewBrief = `Re-review the diff for task "${t.title}" in repo ${A.repo} after a fix round (files: ${JSON.stringify(impl.filesChanged)}). Previous findings:\n${(review?.findings ?? []).join('\n')}${QUIET}`
-        const rereviewed = await agent(rereviewBrief, { label: `re-review:${t.id}`, phase: 'Review', schema: REVIEW, agentType: 'codeswarm:swarm-reviewer', effort: 'max', ...TOP })
-        if (rereviewed) review = rereviewed
-      }
+      // No re-review round. The re-test above re-runs the suite and the edge cases,
+      // and it is the only fatal gate (see the stage loop); a second reviewer pass
+      // over an already-gated fix is redundant on a model that verifies its own work.
+      // Consequence: `review` still describes the PRE-fix diff, so flag it rather
+      // than let the director read it as a verdict on the delivered code.
+      reviewStaleAfterFix = !skipReview && !!review
     }
   }
 
-  log(`task ${t.id}: tester=${test?.verdict ?? '?'} review=${review?.verdict ?? (skipReview ? 'skipped' : '?')}`)
-  return { task: t.id, title: t.title, implemented: impl, testerReport: test, reviewVerdict: review, reviewSkipped: skipReview }
+  log(`task ${t.id}: tester=${test?.verdict ?? '?'} review=${review?.verdict ?? (skipReview ? 'skipped' : '?')}${reviewStaleAfterFix ? ' (pre-fix — re-test is the gate)' : ''}`)
+  return { task: t.id, title: t.title, implemented: impl, testerReport: test, reviewVerdict: review, reviewSkipped: skipReview, reviewStaleAfterFix }
 }
 
 const stageList = groupStages(A.tasks)
@@ -198,7 +203,7 @@ if (RETRO_MODE === 'off') {
     : 'Judge ONLY cross-task coherence: architectural fit with the existing codebase, layer direction, package/folder hygiene (no class dumps in a package root — dto/, components/, service/ etc. need logical submodules), naming consistency, DX (discoverability, readability).'
   retrospect = await agent(
     `Retrospective ARCHITECTURE review of repo ${A.repo} after a ${delivered.length}-task build (files touched: ${JSON.stringify(allFiles)}). ${FOCUS} Do NOT re-review correctness — that is done. Do NOT fix anything — report only. coherent=false requires at least one concrete finding.${QUIET}`,
-    { label: 'retrospect', phase: 'Retrospect', schema: RETRO, agentType: 'codeswarm:swarm-reviewer', effort: 'max', ...TOP }
+    { label: 'retrospect', phase: 'Retrospect', schema: RETRO, agentType: 'codeswarm:swarm-reviewer', effort: 'xhigh', ...TOP }
   )
   if (retrospect) log(`retrospect (${RETRO_MODE}): coherent=${retrospect.coherent}, ${retrospect.findings.length} finding(s)`)
   else log('retrospect agent failed — no architecture verdict')

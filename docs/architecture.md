@@ -50,7 +50,9 @@ flowchart TD
   independent existence checks plus a severity gate before you see them.
   Agents that check work never wrote that work.
 - **Adversarial review.** Reviewers hunt problems with severity tags; a fix
-  round is followed by re-test and re-review, not by trust.
+  round is followed by an independent re-test, not by trust. There is no second
+  reviewer pass — the re-test gates the fix, and the pre-fix review verdict is
+  returned flagged as stale rather than refreshed.
 - **Finder fusion.** Reviewer-flavored dimensions (bugs, performance,
   conventions, architecture) run as ONE finder pass so the repo is read once,
   not once per dimension; specialist dimensions (security, WCAG,

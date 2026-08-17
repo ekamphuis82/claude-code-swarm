@@ -27,7 +27,7 @@ Rigor tiers (config `rigor`; per-run escalation `--thorough` /
   one independent tester per task, no adversarial review, no retrospect;
   review = single-lens existence verify, no severity check.
 - **full** (~3–4x, opt-in): build adds the adversarial reviewer + fix round
-  (with re-test and re-review) + whole-build retrospect; review gets the
+  (with re-test; no second reviewer pass) + whole-build retrospect; review gets the
   graded verify (2 unanimous lenses on critical/major + a severity check;
   1 lens on minors) and, with `--thorough`, up to 3 coverage-guided finder
   rounds.
@@ -35,7 +35,8 @@ Rigor tiers (config `rigor`; per-run escalation `--thorough` /
 Agent counts for estimates:
 
 - build lite: 2 per task (implementer + tester; +2 per fix round);
-  full: 3 per task (+3 per fix round), +1 retrospect per build.
+  full: 3 per task (+2 per fix round — fix + re-test, no second review),
+  +1 retrospect per build.
 - review lite: 1 fused finder + 1 per specialist dimension, then 1 verify
   agent per finding; full: same finders + coverage rounds, 2–6 verify per
   finding (the top end only on lens retries or a contested critical
@@ -165,7 +166,7 @@ guess.
 | `--thorough` (alias `--rigor=full`) | config `rigor` (lite) | escalate THIS run to full rigor (see Cost model); pass `rigor: 'full'` to swarm-build/swarm-review |
 | `--verify=normal\|strict` | `normal` | verify regime under full rigor: `normal` = per the full tier; `strict` = full lens set for EVERY severity (pass `verify: 'strict'`) plus one cheap verifier agent (sonnet) on altitude-rule inline work; `--thorough` implies strict; ignored under lite |
 | `--max-model=<name>` | config `topModel`, else session model | model CEILING for this run's top-tier calls, overriding the config in BOTH directions (cap to `sonnet`, or raise above a configured cap) |
-| `--max-effort=low\|high\|max` | per-stage tiers | effort CEILING: clamp every per-task `effort` you assign to swarm-build tasks; other scripts have effort baked in — do not fake it for them |
+| `--max-effort=low\|high\|xhigh\|max` | per-stage tiers | effort CEILING: clamp every per-task `effort` you assign to swarm-build tasks; other scripts have effort baked in — do not fake it for them |
 
 ## Config file (read at triage, before building any args)
 
@@ -221,8 +222,17 @@ else the condensed flow). Only after an approved plan exists:
    (plan-task text, file paths, interfaces) — they see nothing else.
 2. Run `swarm-build.js` with `{repo, tasks, planPath}` plus `topModel`,
    `rigor`, `retrospect` per the config.
-3. Read the per-task verdicts; CHANGES-REQUESTED beyond the script's one
-   fix round → bring the findings back to the main thread.
+3. Read the per-task verdicts. There is no second reviewer pass, so a task
+   whose fix round landed carries `reviewStaleAfterFix: true` and a
+   `reviewVerdict` describing the PRE-fix diff — do NOT read that as a
+   verdict on delivered code. Decide per task:
+   - `reviewStaleAfterFix: true` + tester PASS → delivered; the re-test is
+     the gate. Report the pre-fix findings as addressed, do not escalate.
+   - CHANGES-REQUESTED with `reviewStaleAfterFix: false` (no fix round
+     landed — fix agent failed, or the review ran after no fix was needed)
+     → bring the findings back to the main thread.
+   - tester FAIL or a missing tester report → fatal regardless of the
+     review verdict; the script already stopped the stage.
 4. **Retrospect handling** (the retrospect NEVER auto-fixes). Write returned
    retrospect findings as a walkable markdown report into the target repo:
    `docs/swarm-retrospect-<date>.md` when `docs/` exists, else the repo
@@ -435,9 +445,12 @@ still pass real JSON objects.
   breaks the fallback. The ONLY sanctioned override is the config
   `topModel`, passed through args; unset/null = fallback intact.
 - Effort tiers: `low` mechanical stages; `high` fan-out verify
-  lenses/judges (majority voting compensates); `max` the singular final
-  gates (build review + re-review, architecture retrospect, research
-  synthesis, drift merge).
+  lenses/judges (majority voting compensates); `xhigh` the singular final
+  gates (build review, architecture retrospect, research synthesis, drift
+  merge) — `xhigh` rather than `max` because `max` overthinks and shows
+  diminishing returns on current models. Gate effort is hardcoded in the
+  scripts; `--max-effort` clamps build per-task effort only, so there is no
+  per-run escalation for the gates — edit the script to change one.
 
 ## Non-negotiables (enforce when reading results)
 

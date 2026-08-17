@@ -171,7 +171,7 @@ default):
   model) — this run's model ceiling for top-tier agent calls (cap it:
   `--max-model=sonnet`; or raise it above a configured cap:
   `--max-model=opus`).
-- `--max-effort=low|high|max` (default: per-stage tiers) — effort ceiling
+- `--max-effort=low|high|xhigh|max` (default: per-stage tiers) — effort ceiling
   for this run's build tasks (other workflows have their effort tiers
   baked in).
 
@@ -346,7 +346,7 @@ the whole point — so be deliberate about when you reach for full rigor.
 | Workflow | Agents dispatched | Expect |
 |---|---|---|
 | review | 3 finder agents on the default dimensions (fused reviewer + security + WCAG), then **1 verify agent per finding** by default (lite); `--thorough`/`--rigor=full` lifts that to the graded 1–5 verify and adds finder rounds | small repo: tens of agents, a few hundred thousand tokens |
-| build | **default (lite): implementer + independent tester per task** (~2 agents/task). `--thorough`/`--rigor=full` adds the adversarial reviewer + a fix round (up to 3 more) + one retrospect per build | lite: a 5-task build is ~10 agents; full: 15–30 |
+| build | **default (lite): implementer + independent tester per task** (~2 agents/task). `--thorough`/`--rigor=full` adds the adversarial reviewer + a fix round (up to 2 more — fix + re-test) + one retrospect per build | lite: a 5-task build is ~10 agents; full: 15–26 |
 | refactor | 1 discover + 1 transformer per batch of 8 sites (cheapest model tier) + 1 verify | cheap next to build/review |
 | research | 1 researcher per angle (default 3) + 1 judge per answer + 1 synthesis | about 7 agents |
 | drift | 1 scanner per repo + 1 merge | scales with repo count |

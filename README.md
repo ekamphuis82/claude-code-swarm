@@ -112,11 +112,19 @@ rebuilding it every time.
   platform-specific paths, and the runtime hooks need only Node. The
   [development checks](#development) additionally need a POSIX shell (on
   Windows: Git Bash, which ships with Git for Windows).
-- **superpowers plugin recommended, not required.** When the `superpowers`
-  plugin (available from the official marketplace:
-  `/plugin install superpowers`) is installed, the director uses its
-  brainstorming/planning/TDD process skills; when absent it falls back to a
-  condensed built-in flow.
+- **superpowers process skills recommended, not required.** When
+  `brainstorming` and `writing-plans` are available, the director runs
+  design and planning under them; when absent it falls back to a condensed
+  built-in flow. (TDD discipline is baked into the agent prompts and needs
+  no skill either way.) Availability is what counts, not where they come
+  from: the `superpowers` plugin from the official marketplace
+  (`/plugin install superpowers`) ships them, and copying those skill
+  directories into `~/.claude/skills/` works identically. Prefer the copies
+  if your model already delegates and self-verifies by default (Opus 5
+  does): the superpowers plugin also registers a `SessionStart` hook that
+  injects a preamble pressuring delegation and a separate verification
+  pass, which such a model does not need and which can conflict with a
+  repo's own harness rules.
 - **Plugin name vs command name.** The plugin registers as `codeswarm`
   (skills and agents resolve as `codeswarm:*`); the command it provides is
   `/codeswarm:swarm`. Claude Code always namespace-prefixes plugin commands

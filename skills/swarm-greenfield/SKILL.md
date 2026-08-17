@@ -10,8 +10,9 @@ generate one), load it FIRST — it carries the canonical repo set, bootstrap
 order and day-0 invariants; otherwise establish those three during the spec
 step.
 
-1. Platform spec in the MAIN THREAD (superpowers or the director's
-   condensed flow): tenancy model, repo set, admin surface, mobile scope.
+1. Platform spec in the MAIN THREAD (the brainstorming/writing-plans skills
+   when available, else the director's condensed flow): tenancy model, repo
+   set, admin surface, mobile scope.
    One spec for the platform; one plan per repo — a platform is never a
    single implementation plan.
 2. Director does the platform plumbing inline (one-off privileged actions,

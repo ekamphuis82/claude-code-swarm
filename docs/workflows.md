@@ -9,7 +9,10 @@ counts — actual token spend depends on repo size and the session model.
 ## swarm-build.js
 
 Plan-driven build. Phases: Implement → Verify → (Review → fix round with
-re-test and re-review) → (Retrospect). By DEFAULT (`rigor: 'lite'`) the Review
+re-test) → (Retrospect). The fix round has no second reviewer pass: the
+re-test is the only fatal gate, so `reviewVerdict` after a fix describes the
+PRE-fix diff and the result carries `reviewStaleAfterFix: true` to say so.
+By DEFAULT (`rigor: 'lite'`) the Review
 and Retrospect phases are OFF — a build is implement + one independent test
 per task. `rigor: 'full'` (`--thorough`) turns them on. Each stage retries
 once on a null agent result; a still-null tester report, or a tester `FAIL`,
@@ -29,8 +32,8 @@ tasks skip the Review stage even under full rigor (tester-only gate).
 
 Output: per-task verdicts (test output quoted verbatim, reviewer verdict,
 fix-round result) + retrospect findings (never auto-fixed). Cost: ~3 agents
-per task (implementer, tester, reviewer), +3 per fix round (fix, re-review,
-re-test), +1 retrospect per build.
+per task (implementer, tester, reviewer), +2 per fix round (fix, re-test),
++1 retrospect per build.
 
 ## swarm-review.js
 

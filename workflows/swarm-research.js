@@ -78,10 +78,10 @@ log(`judged: ${ranked.map(r => r.score ?? 'unscored').join(',')}`)
 
 phase('Synthesize')
 const synthPrompt = `Synthesize a final answer to: ${A.question}\nUse the ranked research below; prefer higher-scored answers, graft unique verified facts from the rest, carry forward all unknowns and gaps honestly. Answers with score null were never judged (judge infra failure) — unscored does NOT mean bad; weigh their evidence on its own merits. Cite evidence inline.${QUIET}${FENCE('ranked research answers', JSON.stringify(ranked, null, 2))}`
-let synthesis = await agent(synthPrompt, { label: 'synthesize', schema: ANSWER, effort: 'max', ...TOP })
+let synthesis = await agent(synthPrompt, { label: 'synthesize', schema: ANSWER, effort: 'xhigh', ...TOP })
 if (!synthesis) {
   log('synthesis null — one retry')
-  synthesis = await agent(synthPrompt, { label: 'synthesize-retry', schema: ANSWER, effort: 'max', ...TOP })
+  synthesis = await agent(synthPrompt, { label: 'synthesize-retry', schema: ANSWER, effort: 'xhigh', ...TOP })
 }
 if (!synthesis) {
   log('synthesis agent failed — raising error so the run fails loudly')

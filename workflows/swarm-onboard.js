@@ -238,10 +238,10 @@ if (MODE === 'propose' && hasStacks) {
 EVIDENCE (hard rule): every evidence field must be exactly "stack-default: <stack>@<version>" naming the declared stack that justifies the entry — never a file:line, never an invented reference.
 NAMING (hard rule): every name lowercase kebab-case (a-z, 0-9, hyphens only — no dots, no spaces); the script prefixes every generated name with "my-" itself, do not add it. Never reuse these reserved names: ${[...reserved].sort().join(', ')}.
 Declared stacks:${FENCE('declared stacks', JSON.stringify(stacksList))}${QUIET}`
-  let roster = await agent(rosterPrompt, { label: 'synthesize-stacks', phase: 'Synthesize', schema: ROSTER, effort: 'max', ...TOP })
+  let roster = await agent(rosterPrompt, { label: 'synthesize-stacks', phase: 'Synthesize', schema: ROSTER, effort: 'xhigh', ...TOP })
   if (!roster) {
     log('stack-default synthesis null — one retry')
-    roster = await agent(rosterPrompt, { label: 'synthesize-stacks-retry', phase: 'Synthesize', schema: ROSTER, effort: 'max', ...TOP })
+    roster = await agent(rosterPrompt, { label: 'synthesize-stacks-retry', phase: 'Synthesize', schema: ROSTER, effort: 'xhigh', ...TOP })
   }
   lap('synthesize')
   if (!roster) { log('synthesis agent failed twice'); return { mode: 'propose', origin: 'stack-default', stacks: stacksList, inventories: [], proposal: null, plannedFiles: [], note: 'synthesis agent failed twice — nothing to propose', tokens: tokens() } }
@@ -275,10 +275,10 @@ if (MODE === 'propose') {
 (2) Convention skills — one per coherent rule cluster shared by or critical to the repos. Each: name, one-line description ending in a "Load before ..." trigger, scope, and the rules themselves — EVERY rule tagged "universal" or with the repo name it is scoped to, and carrying its evidence. Only rules grounded in the inventories; do not pad. Treat code-organization / layout conventions (package or directory structure, module boundaries, naming, where a new class/component of a given kind belongs) as FIRST-CLASS rule clusters — a common miss. When a layout is the stack's HOUSE STYLE rather than a one-repo quirk, tag its rules "universal" so a NEW repo in the same stack inherits them (not just the scanned repos), and make sure the stack agent that owns that stack lists the skill.${OVERLAP_CLAUSE}
 NAMING (hard rule): every name lowercase kebab-case (a-z, 0-9, hyphens only — no dots, no spaces); the script prefixes every generated name with "my-" itself, do not add it. Never reuse these reserved names: ${[...reserved].sort().join(', ')}.
 Inventories:${FENCE('repo inventories', JSON.stringify(inventories))}${QUIET}`
-  let roster = await agent(rosterPrompt, { label: 'synthesize', phase: 'Synthesize', schema: ROSTER, effort: 'max', ...TOP })
+  let roster = await agent(rosterPrompt, { label: 'synthesize', phase: 'Synthesize', schema: ROSTER, effort: 'xhigh', ...TOP })
   if (!roster) {
     log('roster synthesis null — one retry')
-    roster = await agent(rosterPrompt, { label: 'synthesize-retry', phase: 'Synthesize', schema: ROSTER, effort: 'max', ...TOP })
+    roster = await agent(rosterPrompt, { label: 'synthesize-retry', phase: 'Synthesize', schema: ROSTER, effort: 'xhigh', ...TOP })
   }
   lap('synthesize')
   if (!roster) { log('synthesis agent failed twice'); return { mode: 'propose', origin: 'repo', inventories, proposal: null, plannedFiles: [], note: 'synthesis agent failed twice — nothing to propose', tokens: tokens() } }

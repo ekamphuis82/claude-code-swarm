@@ -161,6 +161,14 @@ JSONL line (date, version, recall/precision plus the baseline numbers) to
 totals: the accumulated verified-vs-baseline delta across that log is the
 A/B evidence for the verify layer — one run alone is an anecdote.
 
+One practical limit: **this script cannot measure the verify delta**, because
+it pins haiku on both agents and that finder is too
+conservative to flag a trap file at all (4 graded `fixtures/eval3` runs, zero
+`guards.js` findings, delta 0 every time). To measure the delta, run
+`swarm-review.js` on `eval3` with a deliberately suspicion-biased `target`
+instead — that produced 3 killed false positives on the first attempt. Details
+in `fixtures/eval3/README.md`.
+
 ## Shared behavior
 
 - **Budget self-scaling**: give a token target in your prompt ("+200k") and

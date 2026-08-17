@@ -44,11 +44,36 @@ Run via the director exactly like the other fixtures: it reads
 (workflow scripts have no filesystem access). Pass = zero `missed`. The
 result's `baseline` (raw pre-verify finder output graded against the same
 set) MINUS the verified numbers is the measured value of the verify layer —
-and this fixture is the one built to make that delta non-zero. Expect it to
-take several runs before a lure fires: the smoke tier's haiku finder is
-conservative (it ignored the earlier baited traps), so the FP is a
-probability per run, not a guarantee — grade it repeatedly over time and
-read the accumulated delta, never a single run.
+and this fixture is the one built to make that delta non-zero.
+
+**Result of the first real attempt (2026-08-17) — read this before running
+it again.** The smoke tier does NOT bait: four graded `swarm-smoke.js` runs
+each returned exactly the two planted bugs and flagged NOTHING in
+`guards.js`, so the delta stayed 0. Haiku is too conservative to take this
+bait; do not read those zero-delta rows as evidence about the verify layer.
+
+What worked was moving the finder up a tier AND biasing its prompt —
+`swarm-review.js` on this fixture with a target that says, in effect,
+"report EVERY construct that could plausibly be a bug: off-by-one risks,
+loose equality, integer truncation, boundary handling, shared references;
+err on the side of reporting". That produced the first non-zero delta in the
+live log: **3 false positives killed** — all three `guards.js` lures
+(`tail`'s `<=` shape, `coalesce`'s `== null`, `pageOf`'s `Math.floor`) —
+with both planted bugs surviving verify.
+
+Three things that run taught, worth keeping in mind here:
+
+- **Run it at least twice.** Two runs with byte-identical args disagreed:
+  a `grid.js:9` "no bounds check" finding was confirmed in one and rejected
+  in the other. A single run measures nothing.
+- **`tail` is the strongest lure, and it is not fully FP-proof.** One
+  surviving false positive claimed `tail` mishandles negative/fractional
+  `count` — out of the documented contract, so still an FP, but its stated
+  repro was wrong (`tail([1,2,3], 1.5)` returns `[undefined]`, not `[3]`).
+  If you tighten anything, tighten the verify prompt against findings whose
+  own repro does not reproduce, not this file.
+- Grade repeatedly over time and read the accumulated delta from the log,
+  never a single run.
 
 Extension rules (same as the earlier fixtures): never describe a planted bug
 in a code comment (a comment stating the CORRECT contract of a trap is

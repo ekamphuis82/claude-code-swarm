@@ -284,6 +284,13 @@ A target repo's `CLAUDE.md` may carry a `## swarm` section that overrides
 global config. Tokens never go into the chat: the issue-tracker question
 asks for a token *file path* only.
 
+Hand-edited the file? Check it with `node tools/validate-config.js`. It
+allowlists every key above and reports invalid values **and unknown keys** —
+an undocumented key is silently ignored by every reader, so a typo
+(`adhocSpecialists`, `topmodel`) otherwise looks exactly like the default.
+Setup runs it after writing and doctor runs it as a static check; it reports
+only and never rewrites your config.
+
 ### Hooks
 
 The plugin ships two hooks (`hooks/hooks.json`) as tiny, auditable Node
@@ -412,20 +419,32 @@ Where the evidence for the claims in this README actually stands:
   and records both in `codeswarm-eval-log.jsonl` next to the config; the
   accumulated verified-vs-baseline delta across that log is the A/B evidence
   for the verify layer.
-- **Not yet demonstrated:** that the verify layer earns its cost as a
-  trend. Every genuine graded run in the live log to date (across
-  `fixtures/eval`, `eval2` and `eval3`) has a ZERO verify delta — nothing
-  killed, nothing wrongly rejected; run `tools/record-eval.js` output or read
-  the log for the current run count and totals. A handful of null samples is
-  not a trend. An earlier 21-run batch (2026-07-06) is described in
+- **Measured once, not yet a trend:** the verify layer *can* kill real false
+  positives. On 2026-08-17 a graded `fixtures/eval3` run produced the first
+  non-zero delta in the live log: **3 false positives killed, 0 real bugs
+  wrongly rejected**, with both planted bugs surviving verify. The three
+  rejections were exactly `guards.js`'s engineered lures (the `<=` off-by-one
+  shape, the idiomatic `== null`, the correct `Math.floor` paging) — verified
+  by hand afterwards to behave per their documented contract, so those
+  rejections were empirically right, not just plausible. Three caveats keep
+  this a demonstration rather than a trend: (1) it took a deliberately
+  suspicion-biased finder prompt to get there — `swarm-smoke.js`'s haiku finder
+  flagged nothing in `guards.js` in 4 runs, so the *smoke tier cannot measure
+  this delta at all*; (2) one false positive survived, and its own claimed
+  repro did not reproduce, which the verify lens should have caught; (3) an
+  identical re-run flipped one finding between confirmed and rejected, so
+  single runs prove nothing here. Read the current count and totals from the
+  log or `tools/record-eval.js` output, never a frozen number. An earlier
+  21-run batch (2026-07-06) is described in
   `CLAUDE.md` and `fixtures/eval/README.md`; a backfilled copy of it once sat
   in the live log but was purged on 2026-07-15 (19/20 lines shared an
   identical placeholder token count — reconstructed history, not independent
   live runs), so treat it as documented history, not a live log total. It
   reportedly produced deltas in BOTH directions — 1 false positive killed and
   1 real bug wrongly rejected — two anecdotes, opposite signs, net zero, and
-  both from data no longer on disk. So there is currently NO live A/B
-  evidence in either direction. Independent checks catching
+  both from data no longer on disk. The live A/B evidence is therefore exactly
+  the 2026-08-17 run above: one data point, in the layer's favour, with the
+  three caveats attached. Independent checks catching
   plausible-but-wrong findings is the design bet this plugin is built on, and
   the eval log exists to test that bet — not to presume it. Until the log
   accumulates across VARIED fixtures, read "independently verified findings"
@@ -523,8 +542,9 @@ fit), [docs/workflows.md](docs/workflows.md) (per-workflow reference),
 - **Doctor** — run `/codeswarm:swarm doctor`: static installation/config diagnostics
   (node present, Workflow tool available, `codeswarm:*` agents and skills
   registered, installed copy vs clone, the `~/.claude/codeswarm.json` config
-  written by `/codeswarm:swarm setup`, syntax over every workflow and hook
-  script, and the `my-` contract) reported as one status table with a fix
+  written by `/codeswarm:swarm setup` — schema-checked via
+  `tools/validate-config.js`, so invalid values and unknown keys are named —
+  syntax over every workflow and hook script, and the `my-` contract) reported as one status table with a fix
   hint per failing row. Routed through the director triage (no separate
   command file); see `skills/swarm-doctor/SKILL.md`.
 - **Smoke self-test** — run `/codeswarm:swarm smoke`: executes

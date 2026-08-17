@@ -58,6 +58,16 @@ in the `node --test` step.
   `SCHEMA` in `tools/validate-config.js` — a key missing from the schema is
   reported as unknown on an otherwise correct config. `prose-sync.test.mjs`
   asserts the schema half; `validate-config.js` never rewrites a user's file.
+- **Any new write lands in three places in the same PR:** the code or prose
+  that performs it, an entry in `docs/security.md` "Where the plugin writes
+  on disk", and an entry in `tools/write-inventory.test.mjs` (bump its group
+  count deliberately). **This includes prose** — a skill or agent telling
+  the model to write a file is a write, and it is the kind that keeps
+  escaping: every write the inventory has ever missed was prose-directed,
+  never an `fs.*` call. The test cannot discover a new one for you — open
+  vocabulary defeats pattern matching, measured on this repo — so it is a
+  review item. What the test does guarantee is that the documented set
+  cannot drift in either direction.
 - **Workflow scripts are plain JS** (the Workflow tool parses no
   TypeScript) and must keep `meta` a pure literal.
 - **Internal workflow markers** go at the END of `meta.description` as

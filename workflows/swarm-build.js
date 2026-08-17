@@ -37,6 +37,8 @@ if (A.rigor != null && A.rigor !== RIGOR) log(`rigor "${A.rigor}" is not a valid
 const LITE = RIGOR === 'lite'
 // retrospect full|light|off (spec item 12); lite rigor forces off
 const RETRO_MODE = LITE ? 'off' : (['full', 'light', 'off'].includes(A.retrospect) ? A.retrospect : 'full')
+// same reason as the rigor warning above: a typo must not read as the default
+if (A.retrospect != null && !['full', 'light', 'off'].includes(A.retrospect)) log(`retrospect "${A.retrospect}" is not a valid value (full|light|off) — using full`)
 
 // per-phase output-token laps (best-effort: budget.spent() is turn-wide);
 // build phases interleave per task, so the split is tasks vs retrospect only

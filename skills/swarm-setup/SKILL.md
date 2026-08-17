@@ -32,7 +32,12 @@ to re-run: a subscription change (raise or drop the top-model cap).
    key when the existing file has one — it is director bookkeeping for the
    update canary (see `codeswarm:swarm-director`), not a setup question;
    overwriting setup must not erase it.
-4. **Confirm**: print the written path and the final values (token file path
+4. **Validate what you wrote** — run `node tools/validate-config.js` from the
+   plugin root. Exit 0 = done. Non-zero: the write is wrong (a typo'd key is
+   silently ignored by every reader, which is exactly how `rigor: "standard"`
+   went unnoticed for months) — fix the file and re-run until it exits 0
+   before confirming to the user.
+5. **Confirm**: print the written path and the final values (token file path
    only, never token contents). Mention: `alwaysOn` takes effect on the next
    session (the SessionStart hook reads it); `/codeswarm:swarm doctor` displays the
    active config; re-run `/codeswarm:swarm setup` any time.

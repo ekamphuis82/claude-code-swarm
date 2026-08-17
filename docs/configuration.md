@@ -35,6 +35,23 @@ re-asks). Location: `$HOME/.claude/codeswarm.json`, or
 | `lastSmokeVersion` | semver string (absent) | update-canary baseline: the Claude Code version at the last PASSING `/codeswarm:swarm smoke` run. Written via `tools/record-eval.js` (the director runs it after a passing smoke; it preserves every other key, and setup preserves this one); the SessionStart hook compares it against the running version and nudges a re-smoke on mismatch, because the Workflow tool has no stable public API |
 | `runner` | `"workflow"`/`"standalone"` (absent = `"workflow"`) | execution vehicle for the workflow scripts. `workflow` (default) = Claude Code's Workflow tool. `standalone` = the director dispatches via `node runner/run.js` instead — the failover when a Claude Code update breaks the Workflow tool (canary fires, smoke fails). Not a setup question; set it by hand or on the director's advice, and remove it once a re-smoke passes on the Workflow tool. See docs/security.md "Standalone runner" for the permission model |
 
+### Checking the file
+
+```
+node tools/validate-config.js          # or: node tools/validate-config.js <path> [--json]
+```
+
+Allowlist-checks every key against the table above and reports **invalid values
+and unknown keys** — an undocumented key (`adhocSpecialists`, `topmodel`) is
+silently ignored by every reader, so a typo otherwise looks exactly like the
+default. Exit 0 valid (an absent config is valid — defaults apply), 1 problems
+found, 2 unreadable/malformed JSON. It reports only and never rewrites the file.
+
+`/codeswarm:swarm setup` runs it after writing, `/codeswarm:swarm doctor` runs it
+as a static check, and it is worth running by hand after editing the file. The
+workflow scripts keep their own per-key allowlists as well (they receive args
+from the director, not this file) and `log()` a warning when a value falls back.
+
 ### issueTracker variants
 
 ```json

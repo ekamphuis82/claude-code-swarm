@@ -12,6 +12,27 @@ previous bump, plus the bump itself — and the `v<version>` tag sits on that
 bump commit. Tags for 1.0.0 through 1.3.0 were created retroactively on
 2026-08-17, when this changelog was written.
 
+## [1.3.2] — 2026-08-17
+
+### Added
+
+- `docs/security.md` now carries a "Where the plugin writes on disk"
+  section: the full write inventory — four plugin-state paths, two
+  transient files (the issue-tracker auth header, a launch-time script copy
+  for resume) and the two files the director can leave in a target repo
+  (the build retrospect report, `.swarm-waivers.json`) — why the config
+  lives in `<configDir>` rather than the plugin directory, what is never
+  written, and how to remove the plugin's state. Answers the question a
+  marketplace reviewer has to ask about any out-of-root write.
+
+### Changed
+
+- The resume scratch copy of a launch-time workflow script now has a pinned
+  location (`<configDir>/codeswarm-runs/`) instead of an unspecified one,
+  so it is inventoried and cleanable.
+- README's `my-` contract states what it does not cover: name-collision
+  immunity is not file survival across a directory-replacing reinstall.
+
 ## [1.3.1] — 2026-08-17
 
 ### Added

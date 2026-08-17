@@ -261,6 +261,12 @@ generated for you:
 - Re-running onboard never overwrites an existing file either: pre-existing
   artifacts are skipped and reported, so your edits survive.
 
+What the contract does *not* promise is survival of a reinstall that
+replaces the plugin directory outright: `my-*` files are untracked, so they
+ride out a `git pull` but not a wholesale directory swap. Keep a copy of a
+roster you have edited by hand. `docs/security.md` lists every path the
+plugin writes.
+
 ## Configuration
 
 `/codeswarm:swarm setup` writes exactly one file, **`~/.claude/codeswarm.json`** (when

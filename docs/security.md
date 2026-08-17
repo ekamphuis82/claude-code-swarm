@@ -27,6 +27,123 @@ scripts designed to be audited in one sitting:
 Neither script opens a network connection, spawns a process, or writes any
 file. `sh hooks/hooks.test.sh` pipe-tests both.
 
+## Where the plugin writes on disk
+
+**Plugin state: four paths, and no others.** Three sit outside the plugin
+directory; one sits inside it. Two further files are transient, and two
+more can be left behind in a repo you point the swarm at — all four are
+listed under the table. Everything here is local; nothing is uploaded (see
+[No telemetry](#no-telemetry)).
+
+| Path | Written by | Contents |
+|---|---|---|
+| `<configDir>/codeswarm.json` | `swarm setup` (the Write tool, so your normal permission prompt gates it); `tools/record-eval.js` for the `lastSmokeVersion` key only | your settings — and, for an issue tracker, the *path* to a token file, never a token |
+| `<configDir>/codeswarm-eval-log.jsonl` | `tools/record-eval.js`, one appended line per graded run | fixture name, counts, token totals. No source code, no findings text |
+| `<configDir>/codeswarm-runs/<runId>/` | the standalone runner only | `script.js`, `args.json`, `journal.jsonl`, `result.json` — the journal holds agent output, which is repo-derived text |
+| `<pluginDir>/agents/my-*.md`, `<pluginDir>/skills/my-*/` | onboard generate mode, after your approval | the stack agents and convention skills generated for your repos |
+
+`<configDir>` is `$CLAUDE_CONFIG_DIR` when that variable is set, otherwise
+`~/.claude`. Every component resolves it identically — both hooks,
+`tools/validate-config.js`, `tools/record-eval.js` and `runner/run.js` — so
+no write target is ever a hardcoded home path, and pointing the whole
+plugin at a throwaway or sandboxed config dir takes one environment
+variable. (One READ does use a fixed home path: `session-start.js` looks in
+`~/.local/share/claude/versions` to detect the running Claude Code version
+when the env var is absent. It never writes there, and an unreadable
+directory just makes the canary go silent.) The runner additionally accepts
+`--runs-dir <dir>` to relocate run state on its own.
+
+### Transient files
+
+Two writes are working files rather than state — both local, both short-lived:
+
+- **The issue-tracker auth header** (`skills/swarm-issues`). On the `curl`
+  path the director writes the header line — which contains the token — to
+  a private temp file, `chmod 600` on POSIX or an `icacls` current-user-only
+  grant on Windows, passes it by reference (`-H @file` / `--config`), and
+  deletes it after the batch. This exists precisely so the token never
+  becomes a command-line argument, where process listings and shell xtrace
+  would expose it. The PowerShell path builds headers in memory and writes
+  no file at all. See [Token handling](#token-handling-issue-tracker).
+- **A launch-time workflow script copy** (`skills/swarm-resume`). Resuming
+  a run whose script has since changed requires the exact version it
+  launched with, so the director extracts it (`git show
+  <commit>:workflows/x.js`) into `<configDir>/codeswarm-runs/` and passes
+  that path to the Workflow tool. Plain source from your own history, no
+  secrets; delete the directory whenever you like.
+
+### Why the config is not kept in the plugin directory
+
+Storing it under `<pluginDir>` would be the tidier-looking choice and a
+worse one:
+
+- **Updates would wipe it.** A marketplace install is a managed directory —
+  `claude plugin update` replaces its contents. Settings kept there would
+  not survive a single update, and `swarm setup` would have to be re-run
+  each time.
+- **That directory may be read-only.** Nothing guarantees the installed
+  plugin tree is writable; a config write that fails on some installs is
+  not a config system.
+- **One config, many checkouts.** Users who run an installed copy and a
+  development clone get the same settings instead of two drifting ones.
+- **`~/.claude` is where Claude Code keeps its own state.** `settings.json`
+  and the rest already live there. This is the sanctioned location for
+  per-user configuration, not an escape from the plugin's boundary — which
+  is why the path is resolved through `CLAUDE_CONFIG_DIR` rather than
+  assumed.
+
+### What does not get written
+
+- **The hooks write nothing at all** — they read the config and print at
+  most one line each.
+- **`tools/validate-config.js` writes nothing** — a config repair is always
+  your own edit.
+- **`tools/record-eval.js` never creates a config.** If none is readable it
+  reports `skipped` and moves on; it only ever updates a key inside a file
+  you already made.
+- **Agents never write to your target repositories outside the task you
+  asked for.** A build or refactor changes code because that is the job;
+  research, drift and smoke runs are read-only. Two plugin-generated
+  bookkeeping files can land in a repo, both listed just below.
+
+### Files the plugin can leave in a target repo
+
+Neither is written by an agent; the director writes both, and both are
+plain text you can delete.
+
+- **`docs/swarm-retrospect-<date>.md`** (repo root when there is no
+  `docs/`) — the architecture retrospect at the end of a build, written as
+  a walkable report because the retrospect never auto-fixes. It never
+  overwrites an existing report (`-2`, `-3`, `-<HHmm>` suffixes). The build
+  report ends with three choices; choosing "ignore" deletes the file, and
+  no answer leaves it where it is.
+- **`.swarm-waivers.json`** — appended only when *you* dismiss a review
+  finding, recording `{file, match, reason, date}` so later reviews skip
+  that finding and report it as waived. Nothing is ever removed from it
+  silently, and criticals are never waivable. This is the one case where a
+  review run is not read-only, and it takes your explicit dismissal.
+
+### Removing the plugin's state
+
+Uninstalling the plugin does not delete these files. To remove them:
+`codeswarm.json` and `codeswarm-eval-log.jsonl` in `<configDir>`, plus the
+`codeswarm-runs/` directory. The runs directory is safe to delete at any
+time (it only costs you resume-from-cache on unfinished runs). The eval log
+is the plugin's own measurement evidence — deleting it resets the reported
+totals to zero.
+
+### The write inside the plugin directory
+
+Onboard generate mode writes `my-*` agents and skills into the plugin
+clone. That is a deliberate trade-off, and it is the reason the `my-`
+contract exists: those files are yours, upstream never ships them, and
+`.gitignore` keeps them out of commits, so an update can never collide with
+them by name. What that guarantee does *not* cover is survival: in a clone
+you update with `git pull`, the generated files are untracked and stay put;
+a managed reinstall that replaces the directory outright would take them
+with it. Keep a copy of a roster you have edited. Review generated files
+before reloading — see [Agent boundaries](#agent-boundaries).
+
 ## The tools (`tools/`)
 
 Neither tool is a hook; both are invoked explicitly and both are local-only.

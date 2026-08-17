@@ -11,7 +11,10 @@ description: Resume flow for crashed or rate-limit-killed swarm runs - lists unf
 2. CRITICAL: resume with the EXACT script version the run launched with —
    cache keys are (prompt, opts). If the script changed since launch,
    extract the launch-time version (`git show <commit>:workflows/x.js`) to
-   a scratch file and pass THAT as `scriptPath`.
+   a scratch file and pass THAT as `scriptPath`. Write that scratch copy
+   under `$CLAUDE_CONFIG_DIR`/`~/.claude` + `/codeswarm-runs/` — never into
+   the plugin clone (it would look like a modified shipped script) and
+   never over the live `workflows/x.js`.
 3. `Workflow({scriptPath, resumeFromRunId, args: <identical args>})` —
    completed agents replay free from cache; only the missing tail runs.
 4. Never resume while a rate limit is still active; nothing is lost by

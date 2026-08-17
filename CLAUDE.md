@@ -61,8 +61,15 @@ stay tiny, exit 0, offline, no writes.
   two documented haiku misses; `fixtures/eval3` graded 2/2 pass), recorded
   against a different config dir than the one this machine reads.
   NOTE on the live log:
-  every genuine graded run in `codeswarm-eval-log.jsonl` to date (across
-  eval, eval2, eval3) has a ZERO verify delta — read the log or
+  the log's FIRST non-zero verify delta landed 2026-08-17 — a graded `eval3`
+  run via `swarm-review.js` with a deliberately suspicion-biased target killed
+  3 false positives (all three `guards.js` lures) and wrongly rejected nothing;
+  both planted bugs survived. Every other genuine run is still zero-delta, and
+  the smoke tier CANNOT produce this measurement (haiku flagged nothing in
+  `guards.js` across 4 runs) — to measure the delta, run `swarm-review.js` on
+  `eval3` with an aggressive target, at least twice (an identical re-run flipped
+  one finding between confirmed and rejected). One false positive survived that
+  run, with a repro that does not actually reproduce. Read the log or
   `record-eval.js` output for the current count/totals, never a frozen
   number here. On 2026-07-15 the log was
   purged of a 20-line `2026-07-06` batch that had been backfilled into it
@@ -82,10 +89,10 @@ stay tiny, exit 0, offline, no writes.
   of the cheapest tier `swarm-smoke.js` deliberately hardcodes, not a claim
   about `swarm-review.js` (session-model finder, sonnet verify). Reported
   totals from that documented 2026-07-06 batch (NOT in the live log): 1
-  false positive killed, 1 real bug wrongly rejected — the only two measured
-  deltas ever, opposite signs, and both from data no longer on disk; every
-  genuine live run is zero-delta, so there is currently NO live A/B evidence
-  either way (single anecdotes — see the honesty section in README). Read
+  false positive killed, 1 real bug wrongly rejected — opposite signs, and
+  both from data no longer on disk. The live A/B evidence is the 2026-08-17
+  `eval3` run noted above (3 FPs killed, 0 wrongly rejected): one data point
+  in the layer's favour, not a trend — see the honesty section in README. Read
   the log for the run count; never freeze one here. A third fixture, `fixtures/eval3`, is precision-weighted: its
   `guards.js` is correct code shaped like notorious bugs (including the
   correct-form twin of `eval2`'s real `<=` off-by-one) to make a finder emit

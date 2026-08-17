@@ -12,6 +12,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync, readdirSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
@@ -100,6 +101,17 @@ const CONFIG_FACTS = [
   },
   { key: 'issueTracker', default: '(none)', readers: [] }, // sink is prose-driven (swarm-issues skill); nothing in script code
 ]
+
+// tools/validate-config.js reports any key outside its SCHEMA as unknown, so a
+// newly documented key that never lands there would be flagged on a correct
+// config. Keep the two lists in lockstep.
+const { SCHEMA } = createRequire(import.meta.url)('../tools/validate-config.js')
+
+test('every documented config key is in the validate-config schema', () => {
+  for (const fact of CONFIG_FACTS) {
+    assert.ok(fact.key in SCHEMA, `"${fact.key}" is documented but missing from tools/validate-config.js SCHEMA — a valid config would be reported as having an unknown key`)
+  }
+})
 
 for (const fact of CONFIG_FACTS) {
   test(`config key "${fact.key}": documented with its default, and actually read by the named code`, () => {

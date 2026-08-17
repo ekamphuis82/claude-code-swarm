@@ -52,6 +52,12 @@ in the `node --test` step.
   existing files.
 - **Hooks stay tiny, silent-safe and offline.** At most one printed line,
   always exit 0, no network, no file writes.
+- **A new `codeswarm.json` key lands in three places in the same PR:** the
+  table in `docs/configuration.md`, the code that reads it (with an
+  allowlist + `log()` warning, never a silent `=== 'value'` fallback), and
+  `SCHEMA` in `tools/validate-config.js` — a key missing from the schema is
+  reported as unknown on an otherwise correct config. `prose-sync.test.mjs`
+  asserts the schema half; `validate-config.js` never rewrites a user's file.
 - **Workflow scripts are plain JS** (the Workflow tool parses no
   TypeScript) and must keep `meta` a pure literal.
 - **Internal workflow markers** go at the END of `meta.description` as

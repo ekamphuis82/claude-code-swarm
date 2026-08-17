@@ -27,9 +27,21 @@ scripts designed to be audited in one sitting:
 Neither script opens a network connection, spawns a process, or writes any
 file. `sh hooks/hooks.test.sh` pipe-tests both.
 
-## The bookkeeping tool
+## The tools (`tools/`)
 
-`tools/record-eval.js` is NOT a hook — the director invokes it explicitly
+Neither tool is a hook; both are invoked explicitly and both are local-only.
+
+`tools/validate-config.js` READS one local file — `codeswarm.json` in
+`$CLAUDE_CONFIG_DIR` or `~/.claude` (or a path given as its argument) — and
+writes nothing at all: it reports invalid values and unknown keys and leaves
+the file untouched, so a config repair is always the user's own edit. No
+network, no spawned processes. Exit 0 valid, 1 problems, 2 unreadable/malformed.
+`node --test tools/validate-config.test.mjs` covers it. It prints the config's
+key names and offending values, so treat its output like the config itself:
+`issueTracker.tokenFile` appears as a PATH (never the token), because that is
+all the file holds.
+
+`tools/record-eval.js` is NOT a hook either — the director invokes it explicitly
 after a smoke or graded eval run. It writes exactly two local files next to
 the config: it appends one line to `codeswarm-eval-log.jsonl`, and on a
 passing run it updates the `lastSmokeVersion` key inside `codeswarm.json`

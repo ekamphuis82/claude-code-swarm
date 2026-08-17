@@ -12,6 +12,31 @@ previous bump, plus the bump itself — and the `v<version>` tag sits on that
 bump commit. Tags for 1.0.0 through 1.3.0 were created retroactively on
 2026-08-17, when this changelog was written.
 
+## [1.4.0] — 2026-08-17
+
+### Removed
+
+- **`node runner/run.js --skip-permissions`.** It was a convenience alias
+  that made the runner assemble `--dangerously-skip-permissions`, and it
+  added no capability: `--permission-mode` passes its value straight
+  through to `claude -p`, and `bypassPermissions` is one of the CLI's own
+  accepted modes. **Migration:** `--permission-mode bypassPermissions`,
+  with the same sandbox-only warning as before. The flag now fails loudly
+  as an unknown option rather than being silently ignored.
+
+  A strict SemVer reading calls removing a documented CLI flag a MAJOR
+  bump. Released as a minor because the flag lives on the degraded fallback
+  path, the capability it exposed is unchanged, and the migration is a
+  one-token edit — but it is a breaking change for anyone who scripted it.
+
+### Changed
+
+- The runner never assembles `--dangerously-skip-permissions` at all;
+  `runner/driver.test.mjs` asserts the string is never emitted, so a
+  future edit cannot quietly reintroduce a plugin-owned bypass. The
+  security doc's runner section states the posture instead of warning
+  about a flag.
+
 ## [1.3.2] — 2026-08-17
 
 ### Added

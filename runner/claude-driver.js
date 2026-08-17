@@ -101,7 +101,6 @@ function buildArgv (opts, cfg) {
   const argv = ['-p', '--output-format', 'json']
   if (opts.model) argv.push('--model', String(opts.model))
   if (cfg.permissionMode) argv.push('--permission-mode', String(cfg.permissionMode))
-  if (cfg.skipPermissions) argv.push('--dangerously-skip-permissions')
   if (cfg.grantAgentTools && opts._tools && opts._tools.length) argv.push('--allowedTools', opts._tools.join(','))
   return argv
 }
@@ -170,8 +169,11 @@ function spawnClaude (cmd, argv, input, timeoutMs) {
   })
 }
 
-// cfg: { pluginDir, claudeCmd, permissionMode, skipPermissions,
-//        grantAgentTools, timeoutMs, onEvent }
+// cfg: { pluginDir, claudeCmd, permissionMode, grantAgentTools,
+//        timeoutMs, onEvent }
+// NOTE: no bypass flag of its own — a full bypass is reachable as
+// permissionMode 'bypassPermissions', so the driver never assembles
+// --dangerously-skip-permissions itself (driver.test.mjs guards this).
 function createDriver (cfg) {
   const claudeCmd = cfg.claudeCmd || 'claude'
   const timeoutMs = cfg.timeoutMs ?? 3600_000

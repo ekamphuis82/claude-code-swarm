@@ -82,8 +82,17 @@ test('buildArgv: without grantAgentTools the frontmatter tools are NOT allowlist
   assert.ok(!buildArgv({ _tools: ['Bash'] }, {}).includes('--allowedTools'))
 })
 
-test('buildArgv: skipPermissions maps to the dangerously flag', () => {
-  assert.ok(buildArgv({}, { skipPermissions: true }).includes('--dangerously-skip-permissions'))
+// the runner ships NO bypass flag of its own: a full bypass is reachable as
+// --permission-mode bypassPermissions, so this string must never be assembled
+test('buildArgv: never emits --dangerously-skip-permissions', () => {
+  for (const cfg of [{}, { skipPermissions: true }, { permissionMode: 'bypassPermissions' }]) {
+    assert.ok(!buildArgv({}, cfg).includes('--dangerously-skip-permissions'))
+  }
+})
+
+test('buildArgv: a full bypass rides --permission-mode like any other mode', () => {
+  assert.deepEqual(buildArgv({}, { permissionMode: 'bypassPermissions' }),
+    ['-p', '--output-format', 'json', '--permission-mode', 'bypassPermissions'])
 })
 
 // --- parsePayload ----------------------------------------------------------------

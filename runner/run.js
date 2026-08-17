@@ -13,9 +13,9 @@
 //   --args <json> | --args-file <path>   workflow args (object)
 //   --budget <n>            output-token target (budget.total; default none)
 //   --concurrency <n>       max concurrent agents (default min(16, cpus-2))
-//   --permission-mode <m>   passed to `claude -p` (default: user settings)
-//   --skip-permissions      passes --dangerously-skip-permissions (read
-//                           docs/security.md "Standalone runner" first)
+//   --permission-mode <m>   passed to `claude -p` (default: user settings);
+//                           "bypassPermissions" is the full-bypass mode —
+//                           read docs/security.md "Standalone runner" first
 //   --grant-agent-tools     allowlist each agent's frontmatter tools
 //   --agent-timeout <sec>   per-agent wall clock (default 3600)
 //   --claude-cmd <cmd>      claude executable (default "claude")
@@ -39,7 +39,7 @@ function parseArgv (argv) {
   const o = { flags: {}, positional: [] }
   const takesValue = new Set(['--args', '--args-file', '--resume', '--budget', '--concurrency',
     '--permission-mode', '--agent-timeout', '--claude-cmd', '--runs-dir'])
-  const boolean = new Set(['--skip-permissions', '--grant-agent-tools'])
+  const boolean = new Set(['--grant-agent-tools'])
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (takesValue.has(a)) {
@@ -101,7 +101,6 @@ function main () {
     pluginDir: path.resolve(__dirname, '..'),
     claudeCmd: flags['--claude-cmd'],
     permissionMode: flags['--permission-mode'],
-    skipPermissions: !!flags['--skip-permissions'],
     grantAgentTools: !!flags['--grant-agent-tools'],
     timeoutMs: (Number(flags['--agent-timeout']) || 3600) * 1000,
     onEvent,

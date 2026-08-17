@@ -182,9 +182,14 @@ you must know before using its flags:
   (e.g. `acceptEdits`). **`--grant-agent-tools`** allowlists exactly the
   tools an agent's own frontmatter declares (`agents/*.md` `tools:` line)
   — scoped, but it does grant `Bash` to agents that list it.
-- **`--skip-permissions`** maps to `--dangerously-skip-permissions`.
-  Same warning as the flag name: only in a sandbox/container or on a
-  throwaway checkout, never on a machine whose credentials matter.
+- **The runner ships no bypass flag of its own.** It never assembles
+  `--dangerously-skip-permissions`, and `runner/driver.test.mjs` asserts
+  that the string is never emitted. A full bypass is still reachable — it
+  is a permission mode like any other, `--permission-mode
+  bypassPermissions` — so the capability is the CLI's, spelled with the
+  CLI's own name, rather than a convenience alias this plugin adds on top.
+  Use it only in a sandbox or container, or on a throwaway checkout; never
+  on a machine whose credentials matter.
 - **State on disk:** each run writes `script.js`, `args.json`,
   `journal.jsonl` and `result.json` under
   `<configDir>/codeswarm-runs/<runId>/` — the journal contains agent

@@ -60,11 +60,16 @@ Run in this order. Status per row: OK / FAIL / WARN / SKIP.
    Any differing or missing file: WARN "installed copy is stale", detail
    listing up to 3 differing paths. Fix hint: `git pull` in the clone, then
    `/reload-plugins` (or restart Claude Code).
-6. **Config file** — read `~/.claude/codeswarm.json` (when the
-   `CLAUDE_CONFIG_DIR` environment variable is set, look there instead of
-   `~/.claude`). Present: report its values inline in the Detail column
-   (whatever keys exist; for `issueTracker.tokenFile` print only the path,
-   never the file's contents). When `lastSmokeVersion` is present, compare
+6. **Config file** — run `node tools/validate-config.js --json` from the plugin
+   root (it resolves `CLAUDE_CONFIG_DIR` itself, falling back to `~/.claude`).
+   Exit 0 = PASS; exit 1 = FAIL, and the Detail column lists each reported
+   `key: value — hint` verbatim (invalid values AND unknown keys — an unknown
+   key is silently ignored by every reader, which is how `rigor: "standard"`
+   went unnoticed for months); exit 2 = FAIL "config is not valid JSON".
+   Never repair the file yourself — report and let the user fix it or re-run
+   setup. Then read the config and report its values inline in the Detail
+   column (whatever keys exist; for `issueTracker.tokenFile` print only the
+   path, never the file's contents). When `lastSmokeVersion` is present, compare
    it against the running Claude Code version (`claude --version`): mismatch
    = WARN "plumbing last smoke-tested on <old>", fix hint: run
    `/codeswarm:swarm smoke`. Missing file: WARN, detail "not configured —

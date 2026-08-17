@@ -25,6 +25,9 @@ const FENCE = (label, payload) => `\n----- BEGIN DATA ${NONCE} (${label}) -----\
 // a11y config is a default, not a mandate: off only drops wcag from the DEFAULT set;
 // an explicitly passed wcag dimension still runs (audited at AA)
 const a11yLevel = ['off', 'A', 'AA', 'AAA'].includes(A.a11yLevel) ? A.a11yLevel : 'AA'
+// warn instead of falling through silently ([CSW-1]: a typo'd config value must never be
+// indistinguishable from the default). Same shape as the rigor warning below.
+if (A.a11yLevel != null && A.a11yLevel !== a11yLevel) log(`a11yLevel "${A.a11yLevel}" is not a valid value (off|A|AA|AAA) — auditing at AA`)
 const wcagLevel = a11yLevel === 'off' ? 'AA' : a11yLevel
 
 // per-phase output-token laps (best-effort: budget.spent() is turn-wide)
@@ -235,6 +238,7 @@ phase('Verify')
 const CONFIRM_LENSES = ['correctness (is the claimed behavior actually wrong?)', 'reproducibility (can you construct the concrete failing input/state?)']
 // normal = 2-lens critical/major + 1-lens minor; strict = full lens set everywhere
 const VERIFY = ['normal', 'strict'].includes(A.verify) ? A.verify : 'normal'
+if (A.verify != null && A.verify !== VERIFY) log(`verify "${A.verify}" is not a valid value (normal|strict) — using normal`)
 const STRICT = VERIFY === 'strict' || A.thorough === true
 // rigor default 'lite' (spec item 28): single-lens verify, no severity check —
 // still one independent existence check per finding

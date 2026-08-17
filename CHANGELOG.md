@@ -4,8 +4,30 @@ All notable changes to the codeswarm plugin are documented here.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-The version in `.claude-plugin/plugin.json` is the release version; each
-release below is tagged `v<version>` in git.
+
+Claude Code uses the `.claude-plugin/plugin.json` version string as the
+plugin cache key, so the bump commit *is* the release event: a section below
+covers every change the bump made installable — the commits since the
+previous bump, plus the bump itself — and the `v<version>` tag sits on that
+bump commit. Tags for 1.0.0 through 1.3.0 were created retroactively on
+2026-08-17, when this changelog was written.
+
+## [1.3.1] — 2026-08-17
+
+### Added
+
+- `CHANGELOG.md` (this file), covering 1.0.0 onward.
+- `keywords` in the plugin manifest, for marketplace discovery, plus author
+  email and url.
+- Retroactive `v1.0.0`–`v1.3.0` git tags, so every documented release is
+  pinnable.
+
+### Changed
+
+- `homepage` now points at the README anchor rather than repeating
+  `repository`.
+- The CONTRIBUTING version-bump rule now also requires a changelog section
+  and a `v<version>` tag for the same release.
 
 ## [1.3.0] — 2026-08-17
 
@@ -15,14 +37,26 @@ release below is tagged `v<version>` in git.
   write is validated before it lands, so a malformed hand-edit or a bad
   setup answer fails loudly instead of silently changing behaviour
   (`tools/validate-config.js`).
+- `fixtures/eval3`: a precision-weighted grading fixture whose `guards.js`
+  is correct code shaped like notorious bugs, built to make a finder emit a
+  false positive that the verify layer can kill.
 - First live A/B measurement of the verify layer recorded in the eval log: a
-  graded `fixtures/eval3` run with a suspicion-biased target killed three
-  false positives and wrongly rejected nothing.
+  graded `eval3` run with a suspicion-biased target killed three false
+  positives and wrongly rejected nothing.
 
 ### Changed
 
 - Rigor levels now drive an explicit allowlist rather than ad hoc per-route
   logic, and the highest gates run at `xhigh` effort.
+- Documentation reconciled with what is actually on disk: the eval-log
+  claims now describe the log's shape rather than freezing a run count, and
+  a backfilled batch that was not independent live evidence was removed from
+  the log (backup retained next to the config).
+
+### Fixed
+
+- Shadowed inner binding in the onboard workflow renamed (`bare` →
+  `bareRef`).
 
 ### Removed
 
@@ -33,23 +67,14 @@ release below is tagged `v<version>` in git.
 
 ### Added
 
-- `fixtures/eval3`: a precision-weighted grading fixture whose `guards.js`
-  is correct code shaped like notorious bugs, built to make a finder emit a
-  false positive that the verify layer can kill.
+- `fixtures/eval2`: a grading fixture decorrelated from `fixtures/eval`, so
+  repeated grading stops drawing correlated samples from one bug set.
 
 ### Fixed
 
 - Finder output relayed into later prompts is now fenced in the review
   workflow, closing a prompt-injection path from reviewed source into a
   downstream agent prompt.
-- Shadowed inner binding in the onboard workflow renamed (`bare` → `bareRef`).
-
-### Changed
-
-- Documentation reconciled with what is actually on disk: the eval-log claims
-  now describe the log's shape rather than freezing a run count, and a
-  backfilled batch that was not independent live evidence was removed from
-  the log (backup retained next to the config).
 
 ## [1.2.0] — 2026-07-10
 
@@ -58,6 +83,11 @@ release below is tagged `v<version>` in git.
 - The onboard repo scan now captures code-organization and layout
   conventions, so generated convention skills describe where code goes, not
   only how it is written.
+
+### Fixed
+
+- The smoke workflow no longer checks for a stale `calc.js` filename in its
+  no-expected pass gate.
 
 ## [1.1.1] — 2026-07-08
 
@@ -93,7 +123,8 @@ First public release.
 
 - `/codeswarm:swarm` director entrypoint with task triage across eleven
   routes: build, greenfield, review, refactor, research, drift, smoke,
-  onboard, doctor, setup, resume.
+  onboard, doctor, setup, resume — including a specialist-fit gate in
+  triage.
 - Deterministic workflow scripts for build, review, refactor, research,
   drift, smoke and onboard — fixed phases, structured JSON handoffs,
   independent verification, quiet-by-default output.
@@ -104,6 +135,13 @@ First public release.
   tool is unavailable.
 - Two small session hooks (`SessionStart` canary, `UserPromptSubmit`
   router), both offline and non-writing.
+- Onboarding fallback that composes a stack-default roster for users with
+  no scannable repos.
 - Grading fixtures (`fixtures/eval`, `fixtures/smoke`) and the eval log
   written by `tools/record-eval.js`.
 - Manifest metadata and repository links for marketplace submission.
+
+### Fixed
+
+- The standalone runner kills the whole process tree on a win32 driver
+  timeout.

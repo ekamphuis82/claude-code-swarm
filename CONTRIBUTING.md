@@ -72,6 +72,12 @@ in the `node --test` step.
   git SHA served as the version and every pushed commit was installable;
   marketplace submission ended that option.) Semver-ish is fine: features
   minor, fixes patch.
+- **Add a `CHANGELOG.md` section for the same version, and tag the release
+  `v<version>`.** The marketplace pre-submission checklist requires the
+  changelog's top version to match the manifest, and a tag is what a
+  reviewer pins. No release-URL link refs in the changelog — the repo URL
+  carries the maintainer name, which the sanitize gate blocks outside
+  LICENSE and the `.claude-plugin` manifests.
 
 ## Style
 

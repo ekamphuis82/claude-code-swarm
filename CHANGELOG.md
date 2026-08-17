@@ -12,6 +12,40 @@ previous bump, plus the bump itself — and the `v<version>` tag sits on that
 bump commit. Tags for 1.0.0 through 1.3.0 were created retroactively on
 2026-08-17, when this changelog was written.
 
+## [1.4.1] — 2026-08-17
+
+### Added
+
+- **`tools/write-inventory.test.mjs` — a gate that keeps the documented
+  write inventory from drifting.** Every write `docs/security.md` had ever
+  missed was prose-directed (a skill telling the model to write a file),
+  never an `fs.*` call, so nothing kept the inventory in sync. The gate
+  cannot discover new prose writes — measured before building, open
+  vocabulary defeats grep — but it guarantees the DOCUMENTED set cannot
+  drift: a write added to a hook, tool, runner or workflow, a retargeted
+  destination, or a renamed inventory entry all fail loudly. New writes
+  stay a review item, now a `CONTRIBUTING.md` checklist line ("any new
+  write lands in three places"). Contributor-facing only, no shipped
+  behaviour change.
+
+### Changed
+
+- **The superpowers dependency is stated in terms of skill availability,
+  not plugin installation.** The director keys design and planning on
+  `brainstorming` and `writing-plans` being available; the superpowers
+  plugin is one way to get them, and copying those skill directories into
+  `~/.claude/skills/` is another that resolves identically. Nothing in the
+  flow changes — the condensed fallback and the agent-side TDD discipline
+  are untouched — but a user who runs the skills without the plugin no
+  longer gets the fallback for no reason. The README additionally notes why
+  the copies can be preferable: the superpowers plugin registers a
+  `SessionStart` hook that injects a preamble pressuring delegation and a
+  separate verification pass, which a model that already does both (Opus 5)
+  does not need, and which can contradict a target repo's own harness
+  rules. Affects
+  `README.md`, `skills/swarm-director/SKILL.md` and
+  `skills/swarm-greenfield/SKILL.md`.
+
 ## [1.4.0] — 2026-08-17
 
 ### Removed

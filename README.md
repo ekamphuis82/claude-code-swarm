@@ -120,7 +120,7 @@ rebuilding it every time.
   from: the `superpowers` plugin from the official marketplace
   (`/plugin install superpowers`) ships them, and copying those skill
   directories into `~/.claude/skills/` works identically. Prefer the copies
-  if your model already delegates and self-verifies by default (Opus 5
+  if your model already delegates and self-verifies by default (Opus 5.5
   does): the superpowers plugin also registers a `SessionStart` hook that
   injects a preamble pressuring delegation and a separate verification
   pass, which such a model does not need and which can conflict with a

@@ -56,7 +56,7 @@ to re-run: a subscription change (raise or drop the top-model cap).
      review gates) carry no model and inherit the session model. Whatever
      model the user is running the session on is what the top tier uses.
    - a **family alias** — `"opus"` / `"sonnet"` / `"haiku"` / `"fable"`.
-     This tracks the LATEST release of that family: `"opus"` runs Opus 5
+     This tracks the LATEST release of that family: `"opus"` runs Opus 5.5
      today and auto-moves to a newer Opus when one ships. Recommended for
      "always use the best Opus" without re-editing config. Use `"sonnet"`
      to cap top-tier cost on a limited subscription.

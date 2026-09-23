@@ -54,7 +54,9 @@ stay tiny, exit 0, offline, no writes.
   Claude Code 2.1.280, plugin 1.5.0 (`fixtures/smoke` plumbing pass, plus
   four graded `fixtures/eval3` review-tier runs, lite, canonical bait
   target — two on the pre-1.5.0 verify code, two on 1.5.0 — all 2/2 with
-  zero lures flagged), from a session whose model was Opus 5.5 — which
+  zero lures flagged; eight more that day, incl. `execRepro`, sonnet
+  finders and the new `fixtures/eval4`, same result), from a session whose
+  model was Opus 5.5 — which
   proves the PLUMBING under that session (script parse, dispatch, schema-forced output, phase/token
   accounting), not top-tier finding: `swarm-smoke.js` pins BOTH its finder
   and its verifier to haiku, so no smoke run has ever exercised the top
@@ -139,7 +141,8 @@ stay tiny, exit 0, offline, no writes.
   measured deltas in OPPOSITE directions (one false positive killed, one real
   bug wrongly rejected — from the documented 2026-07-06 batch, NOT retained in
   the current log) plus the one 2026-08-17 `eval3-bait-review` row in
-  favour of the layer — anecdotes, not a
+  favour of the layer, and twelve 2026-09-23 review-tier rows at delta 0
+  because the finders ran their own claims and emitted no false positives — anecdotes, not a
   trend, and repeating the SAME fixture adds correlated samples, not
   independent evidence (see the 2026-07-06 batch note above). The only real
   fix is more/varied fixtures graded over time

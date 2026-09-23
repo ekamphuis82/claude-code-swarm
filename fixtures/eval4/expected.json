@@ -1,0 +1,4 @@
+[
+  { "file": "parse.js", "mustMatch": "radix|index|nan|map\(parseInt|second (arg|param)|argument" },
+  { "file": "slug.js", "mustMatch": "first|only one|single|replaceall|global|/g|every" }
+]

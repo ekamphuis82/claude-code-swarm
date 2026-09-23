@@ -97,14 +97,15 @@ Record each run via `tools/record-eval.js` with `"workflow":"review"`, the
 predate those fields and carry the label `fixtures/eval3-bait-review`
 instead.
 
-**The canonical target has not baited anything yet.** Four graded runs on
-2026-09-23 (Claude Code 2.1.280, Opus 5.5 finder, lite — two on the pre-1.5.0
-verify code, two on 1.5.0) each returned exactly the two planted bugs and
-flagged NOTHING in `guards.js`, so there was nothing for verify to kill and
+**The canonical target has not baited anything yet.** Eight graded runs on
+2026-09-23 (Claude Code 2.1.280, lite; Opus 5.5 finder on the pre-1.5.0 and
+the 1.5.0 verify code and with `execRepro`, plus two with `topModel:
+sonnet`) each returned exactly the two planted bugs and flagged NOTHING in
+`guards.js`, so there was nothing for verify to kill and
 the delta was 0 every time. The 3 killed false positives above came from the
-2026-08-17 wording under an Opus 5 finder, not from this string. At the Opus
-5.5 tier this fixture no longer measures the verify layer; a stronger trap,
-or a cheaper finder via `topModel`, is needed for that.
+2026-08-17 wording under an Opus 5 finder, not from this string. Neither the Opus
+5.5 nor the sonnet tier takes these lures; `fixtures/eval4` has harder ones
+and records why they did not bait either.
 
 Extension rules (same as the earlier fixtures): never describe a planted bug
 in a code comment (a comment stating the CORRECT contract of a trap is

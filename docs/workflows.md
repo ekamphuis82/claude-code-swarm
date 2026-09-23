@@ -191,8 +191,10 @@ conservative to flag a trap file at all (4 graded `fixtures/eval3` runs, zero
 `guards.js` findings, delta 0 every time). To measure the delta, run
 `swarm-review.js` in graded mode (`expected`) on `eval3` with a deliberately
 suspicion-biased `target` instead — that produced 3 killed false positives
-on the first attempt. Details
-in `fixtures/eval3/README.md`.
+on the first attempt (Opus 5 finder, 2026-08-17). It no longer does: at the
+Opus 5.5 and sonnet tiers the finders run their own claims and flag no lure
+in `eval3` or `eval4`, so the delta is 0. Details in
+`fixtures/eval3/README.md` and `fixtures/eval4/README.md`.
 
 ## Shared behavior
 

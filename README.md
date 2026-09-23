@@ -431,7 +431,9 @@ Where the evidence for the claims in this README actually stands:
   in disjoint classes plus a trap file, added to break the single-fixture
   correlation problem; `fixtures/eval3`: two more disjoint bugs plus a
   precision-weighted trap file — correct code shaped like notorious bugs,
-  built specifically to draw a false positive the verify layer can kill).
+  built specifically to draw a false positive the verify layer can kill;
+  `fixtures/eval4`: two more disjoint bugs plus harder lures, correct twins of
+  other fixtures' real bugs).
   Every graded run also grades the RAW pre-verify finder output as a baseline
   and records both in `codeswarm-eval-log.jsonl` next to the config (one log
   per config dir, so per machine — logs are never merged); the accumulated
@@ -463,7 +465,13 @@ Where the evidence for the claims in this README actually stands:
   1 real bug wrongly rejected — two anecdotes, opposite signs, net zero, and
   both from data no longer on disk. The live A/B evidence is therefore exactly
   the 2026-08-17 run above: one data point, in the layer's favour, with the
-  three caveats attached. Independent checks catching
+  three caveats attached. On 2026-09-23 twelve graded review-tier runs
+  (`eval3` and `eval4`, Opus 5.5 and sonnet finders, with and without
+  `execRepro`, lite) produced ZERO false positives at the finder: every
+  finder ran its own claims with `node` before reporting them, so the verify
+  layer had nothing to kill and the delta was 0 every time. That is not
+  evidence against verify; it is evidence that at the current finder tier
+  these fixtures cannot measure it. Independent checks catching
   plausible-but-wrong findings is the design bet this plugin is built on, and
   the eval log exists to test that bet — not to presume it. Until the log
   accumulates across VARIED fixtures, read "independently verified findings"

@@ -465,13 +465,15 @@ Where the evidence for the claims in this README actually stands:
   1 real bug wrongly rejected — two anecdotes, opposite signs, net zero, and
   both from data no longer on disk. The live A/B evidence is therefore exactly
   the 2026-08-17 run above: one data point, in the layer's favour, with the
-  three caveats attached. On 2026-09-23 twelve graded review-tier runs
-  (`eval3` and `eval4`, Opus 5.5 and sonnet finders, with and without
-  `execRepro`, lite) produced ZERO false positives at the finder: every
-  finder ran its own claims with `node` before reporting them, so the verify
-  layer had nothing to kill and the delta was 0 every time. That is not
-  evidence against verify; it is evidence that at the current finder tier
-  these fixtures cannot measure it. Independent checks catching
+  three caveats attached. On 2026-09-23 sixteen graded review-tier runs
+  (`eval3` and `eval4`; Opus 5.5 and sonnet finders; with and without
+  `execRepro`; four with `finderReadOnly`, finders barred from running
+  code; lite) produced ZERO false positives at the finder, so the verify
+  layer had nothing to kill and the delta was 0 every time. The finders
+  often ran their claims with `node`, but reading-only finders did no worse:
+  at this tier the finders simply see through these lures. That is not
+  evidence against verify; it is evidence that these fixtures cannot measure
+  it at the current finder tier. Independent checks catching
   plausible-but-wrong findings is the design bet this plugin is built on, and
   the eval log exists to test that bet — not to presume it. Until the log
   accumulates across VARIED fixtures, read "independently verified findings"

@@ -157,10 +157,10 @@ const matchesWaiver = f => waivers.some(w =>
   (f.problem ?? '').toLowerCase().includes(String(w.match).toLowerCase()))
 // </waiver-matcher>
 
-// finderReadOnly (opt-in): finders judge by reading only. Two uses: a review of
-// code you have not read (prompt-level, not a sandbox — docs/security.md), and
-// the eval instrument — finders that run their own claims emit no false
-// positives, which leaves the verify layer nothing to measure.
+// finderReadOnly (opt-in): finders judge by reading only — for a review of code
+// you have not read (prompt-level, not a sandbox — docs/security.md). Also tried
+// as an eval instrument (do finders avoid false positives only by running their
+// claims?): on 2026-09-23 reading-only finders flagged no lure either.
 const FINDER_RO = A.finderReadOnly === true
 if (A.finderReadOnly != null && typeof A.finderReadOnly !== 'boolean') log(`finderReadOnly "${A.finderReadOnly}" is not a boolean — finders may run code`)
 if (FINDER_RO) log('finderReadOnly on — finders judge by reading only')

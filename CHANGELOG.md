@@ -20,9 +20,10 @@ bump commit. Tags for 1.0.0 through 1.3.0 were created retroactively on
   finders judge by reading only — no repo code, no self-contained snippets,
   no test runner. Two uses. For code you have not read, it keeps every
   agent in the review from being told it may run code (prompt-level, not a
-  sandbox). On eval fixtures it restores the verify measurement: on
-  2026-09-23 twelve graded runs showed that finders which run their own
-  claims emit no false positives, so the verify delta stayed at zero.
+  sandbox). It was also built as an eval instrument, to test whether
+  finders that run their own claims were why twelve graded runs on
+  2026-09-23 left the verify delta at zero. They were not: four
+  `finderReadOnly` runs on `eval3`/`eval4` flagged no lure either.
 - `tools/record-eval.js` accepts `execRepro` and `finderReadOnly` as
   booleans and splits `byMode` totals by them (`/exec`, `/ro`).
 - `fixtures/eval4`: two disjoint planted bugs and harder lures (correct

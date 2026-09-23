@@ -210,6 +210,11 @@ inconclusive. What that means before you turn it on:
   Nothing enforces that below the prompt except your permission prompts —
   and under `bypassPermissions`, or the standalone runner with pre-granted
   tools, there are none.
+- **`reproExecuted` and `observed` are self-reported.** Live runs showed a
+  lens setting `reproExecuted: true` for a self-contained replica rather than
+  the repo module, and another filling `observed` with a command it had not
+  run. The exec regime checks that a run left output; it cannot tell a real
+  run of the module under test from a claimed one.
 - **Lenses run in parallel.** Each finding's lenses run concurrently, so two
   of them can be executing at once; a crashed lens can leave its temp file
   behind (OS temp only).

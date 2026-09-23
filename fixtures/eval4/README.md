@@ -63,13 +63,13 @@ nothing.
 **Result of the first runs (2026-09-23) — read this before running it
 again.** Four graded runs (two with the Opus 5.5 finder, two with
 `topModel: sonnet`, lite, `execRepro` off) each returned exactly the two
-planted bugs and flagged NOTHING in `calendar.js`. The finders did not
-pattern-match: each one ran its claims with `node` before reporting them
-("returned [7, NaN, NaN] when run in node"), which filters false positives
-out before verify ever sees them. With finders that execute, harder lures
-alone do not produce a verify delta; a finder that is barred from running
-code would — pass `finderReadOnly: true` (and record `"finderReadOnly":true`)
-to measure the verify layer on this fixture.
+planted bugs and flagged NOTHING in `calendar.js`. The finders often ran
+their claims with `node` before reporting them ("returned [7, NaN, NaN] when
+run in node"), so the first guess was that execution filtered the false
+positives. Two more runs with `finderReadOnly: true` (finders barred from
+running anything) refuted that: they flagged nothing in `calendar.js`
+either. At the Opus 5.5 tier the finder reads these lures correctly, and
+this fixture measures no verify delta.
 
 Extension rules (same as the earlier fixtures): never describe a planted bug
 in a code comment (a comment stating the CORRECT contract is allowed and is

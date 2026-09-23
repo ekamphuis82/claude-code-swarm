@@ -142,7 +142,9 @@ stay tiny, exit 0, offline, no writes.
   bug wrongly rejected — from the documented 2026-07-06 batch, NOT retained in
   the current log) plus the one 2026-08-17 `eval3-bait-review` row in
   favour of the layer, and twelve 2026-09-23 review-tier rows at delta 0
-  because the finders ran their own claims and emitted no false positives — anecdotes, not a
+  (sixteen by the end of the day, four with finderReadOnly) because the
+  finders emitted no false positives — reading-only finders included, so
+  it is finder precision, not only finders running their own claims — anecdotes, not a
   trend, and repeating the SAME fixture adds correlated samples, not
   independent evidence (see the 2026-07-06 batch note above). The only real
   fix is more/varied fixtures graded over time

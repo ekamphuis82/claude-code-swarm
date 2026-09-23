@@ -145,10 +145,12 @@ stay tiny, exit 0, offline, no writes.
   (sixteen by the end of the day, four with finderReadOnly) because the
   finders emitted no false positives — reading-only finders included, so
   it is finder precision, not only finders running their own claims; and
-  the first REAL-code row (2026-09-23, full rigor, private repo, blind model
-  grader): 29 findings, 27 real, verify confirmed all 29 — both false
-  positives at critical — so killed 0, wrongly rejected 0, for 275k of 345k
-  output tokens. The README states this; never drop it — anecdotes, not a
+  the two REAL-code rows (2026-09-23, full rigor, one private repo, blind
+  model grader): an older branch — 29 findings, 27 real, verify confirmed
+  all 29, both false positives at critical; the current develop branch —
+  29 findings, 28 real + 1 unsure, verify confirmed the 28 and left the
+  unsure one inconclusive. Killed 0, wrongly rejected 0 in both, for 275k
+  and 224k of verify output tokens. The README states this; never drop it — anecdotes, not a
   trend, and repeating the SAME fixture adds correlated samples, not
   independent evidence (see the 2026-07-06 batch note above). The only real
   fix is more/varied fixtures graded over time

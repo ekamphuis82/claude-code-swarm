@@ -262,3 +262,94 @@ test('finderReadOnly wiring: every finder prompt carries the read-only rule; abs
   const plain = await run({}, driver)
   assert.ok(plain.calls.filter(c => c.label.startsWith('find:')).every(c => !c.prompt.includes('READ-ONLY RUN')), 'default finders are not restricted')
 })
+
+test('graded wiring: a finding whose every lens failed is unresolved, never booked as a kill', async () => {
+  const { result } = await run({ rigor: 'lite', expected: [{ file: 'grid.js', mustMatch: 'share' }] }, (prompt, label) => {
+    if (label.startsWith('find:')) {
+      return ok({ findings: [fnd('grid.js', 5, 'major', 'fill shares one row array'), fnd('guards.js', 6, 'major', 'off-by-one in tail')], areasCovered: ['src'] })
+    }
+    if (label.startsWith('verify:')) return label.includes('guards.js') ? ok(null, 0) : ok(CONF)
+    throw new Error(`unexpected label: ${label}`)
+  })
+  assert.deepEqual(result.verifyFailed.map(f => f.file), ['/repo/guards.js'])
+  assert.deepEqual(result.baseline.unexpected.map(f => f.file), ['/repo/guards.js'])
+  assert.deepEqual(result.unexpectedInconclusive.map(f => f.file), ['/repo/guards.js'], 'infra failure is unresolved: baseline - unexpected - unresolved = 0 killed')
+  assert.ok(result.unexpectedInconclusive.every(f => !('_runtime' in f) && !('isConfirmed' in f)), 'no internal fields leak')
+})
+
+test('finderReadOnly wiring: lenses get no snippet allowance either (a replica of repo code is still repo code)', async () => {
+  const driver = (prompt, label) => {
+    if (label.startsWith('find:')) return ok({ findings: [fnd('a.js', 1, 'major', 'x')], areasCovered: ['src'] })
+    if (label.startsWith('verify:')) return ok(CONF)
+    if (label.startsWith('severity:')) return ok({ honest: true, adjustedSeverity: 'major', reason: 'r' })
+    throw new Error(`unexpected label: ${label}`)
+  }
+  const ro = await run({ finderReadOnly: true }, driver)
+  const lenses = ro.calls.filter(c => c.label.startsWith('verify:'))
+  assert.ok(lenses.length && lenses.every(c => c.prompt.includes('not even a replica of repo code') && !c.prompt.includes('you may run a self-contained snippet')))
+  const sev = ro.calls.filter(c => c.label.startsWith('severity:'))
+  assert.ok(sev.length && sev.every(c => c.prompt.includes('not even a replica of repo code')), 'the severity check is told to execute nothing too')
+  const plain = await run({}, driver)
+  assert.ok(plain.calls.filter(c => c.label.startsWith('severity:')).every(c => !c.prompt.includes('READ-ONLY RUN')), 'outside finderReadOnly the severity brief is unchanged')
+})
+
+test('smoke graded wiring: a null verify result is unresolved, not a kill', async () => {
+  const smoke = readFileSync(join(here, 'swarm-smoke.js'), 'utf8')
+  const harness = createHarness({
+    driver: async (prompt, opts) => {
+      if (opts.label === 'smoke:find') return ok({ findings: [{ file: '/fx/calc.js', line: 4, problem: 'off by one' }, { file: '/fx/trap.js', line: 2, problem: 'imagined' }] })
+      if (opts.label === 'smoke:verify:2') throw new Error('lens down')
+      return ok({ verdict: 'confirmed', reason: 'r', evidence: 'e' })
+    },
+  })
+  const { result } = await runScript(smoke, { fixtureDir: '/fx', expected: [{ file: 'calc.js' }] }, harness)
+  const r = JSON.parse(JSON.stringify(result))
+  assert.deepEqual(r.unexpected, [])
+  assert.deepEqual(r.baseline.unexpected.map(f => f.file), ['/fx/trap.js'])
+  assert.deepEqual(r.unexpectedInconclusive.map(f => f.file), ['/fx/trap.js'])
+})
+
+test('graded wiring: waived, waiver-honored and inconclusive-minor findings are all unresolved, never kills', async () => {
+  const waivers = [{ file: 'w.js', match: 'waived trap finding' }, { file: 'h.js', match: 'honored trap finding' }]
+  const { result } = await run({ rigor: 'full', waivers, expected: [{ file: 'grid.js', mustMatch: 'share' }] }, (prompt, label) => {
+    if (label.startsWith('find:')) {
+      return ok({
+        findings: [
+          fnd('grid.js', 5, 'major', 'fill shares one row array'),
+          fnd('w.js', 1, 'major', 'waived trap finding'),
+          fnd('h.js', 2, 'critical', 'honored trap finding'),
+          fnd('m.js', 3, 'minor', 'minor trap finding'),
+        ],
+        areasCovered: ['src'],
+      })
+    }
+    if (label.startsWith('verify:')) return ok(label.includes('m.js') ? vote('inconclusive') : CONF)
+    // h.js critical: both severity checks downgrade it -> the waiver is honored after verify
+    if (label.startsWith('severity')) return ok(label.includes('h.js') ? { honest: false, adjustedSeverity: 'major', reason: 'r' } : { honest: true, adjustedSeverity: 'major', reason: 'r' })
+    throw new Error(`unexpected label: ${label}`)
+  })
+  assert.deepEqual(result.waived.map(f => f.file).sort(), ['/repo/h.js', '/repo/w.js'])
+  assert.equal(result.inconclusiveMinors, 1)
+  assert.deepEqual(result.baseline.unexpected.map(f => f.file).sort(), ['/repo/h.js', '/repo/m.js', '/repo/w.js'])
+  assert.deepEqual(result.unexpected, [])
+  assert.deepEqual(result.unexpectedInconclusive.map(f => f.file).sort(), ['/repo/h.js', '/repo/m.js', '/repo/w.js'],
+    'waived, waiver-honored and inconclusive minors are unresolved: 3 - 0 - 3 = 0 killed')
+})
+
+test('budget wiring: a finding whose severity check hits the budget ceiling is reported, not dropped', async () => {
+  const calls = []
+  const harness = createHarness({
+    budgetTotal: 200_000,
+    driver: async (prompt, opts) => {
+      calls.push(opts.label)
+      if (opts.label.startsWith('find:')) return { result: { findings: [fnd('a.js', 1, 'major', 'real bug')], areasCovered: ['src'] }, outputTokens: 40_000 }
+      if (opts.label.startsWith('verify:')) return { result: CONF, outputTokens: 80_000 }
+      return { result: { honest: true, adjustedSeverity: 'major', reason: 'r' }, outputTokens: 1 }
+    },
+  })
+  const { result } = await runScript(source, { repo: '/repo', rigor: 'full', dimensions: ['bugs'], expected: [{ file: 'a.js' }] }, harness)
+  const r = JSON.parse(JSON.stringify(result))
+  assert.ok(!calls.some(l => l.startsWith('severity:')), 'the severity call never reached the driver: the ceiling threw first')
+  assert.deepEqual(r.verifyFailed.map(f => f.file), ['/repo/a.js'], 'the finding is reported, not lost')
+  assert.deepEqual(r.missedInconclusive.map(e => e.file), ['a.js'], 'and graded unresolved, not wrongly rejected')
+})

@@ -1,7 +1,7 @@
 # Eval fixture 4 (precision-weighted, harder lures)
 
 Built because `fixtures/eval3` stopped measuring anything: on 2026-09-23,
-seven graded review-tier runs (Opus 5.5 and sonnet finders, suspicion-biased
+eight graded review-tier runs (Opus 5.5 and sonnet finders, suspicion-biased
 target) returned exactly the two planted bugs and flagged nothing in
 `guards.js`, so verify had nothing to kill. Current finders see through
 `<=` loops, `== null` and `Math.floor`. This fixture's lures are harder: each

@@ -178,6 +178,14 @@ default):
   critical/major, one on minors; `strict` = the full lens set for every
   severity plus a verifier on director-inline work. Ignored under lite
   (lite is single-lens by design).
+- `--exec-repro` (default: off) — review verify lenses on `bugs` findings
+  must run the finding's repro; a verdict without an executed repro counts as
+  inconclusive. It runs the repo's code — only for code you trust (see
+  [docs/security.md](docs/security.md#repro-execution-opt-in)).
+- `--finder-read-only` (default: off) — finders and verify lenses are told
+  to execute nothing, snippets included (`--exec-repro`, if also given,
+  still wins for bugs lenses). For code you have not read; a prompt rule,
+  not a sandbox.
 - `--max-model=<name>` (default: the config `topModel`, else your session
   model) — this run's model ceiling for top-tier agent calls (cap it:
   `--max-model=sonnet`; or raise it above a configured cap:
@@ -463,9 +471,9 @@ Where the evidence for the claims in this README actually stands:
   live runs), so treat it as documented history, not a live log total. It
   reportedly produced deltas in BOTH directions — 1 false positive killed and
   1 real bug wrongly rejected — two anecdotes, opposite signs, net zero, and
-  both from data no longer on disk. The live A/B evidence is therefore exactly
-  the 2026-08-17 run above: one data point, in the layer's favour, with the
-  three caveats attached. On 2026-09-23 sixteen graded review-tier runs
+  both from data no longer on disk. The only non-zero fixture delta in the
+  live log is therefore the 2026-08-17 run above: one data point, in the
+  layer's favour, with the three caveats attached. On 2026-09-23 sixteen graded review-tier runs
   (`eval3` and `eval4`; Opus 5.5 and sonnet finders; with and without
   `execRepro`; four with `finderReadOnly`, finders barred from running
   code; lite) produced ZERO false positives at the finder, so the verify
@@ -474,19 +482,30 @@ Where the evidence for the claims in this README actually stands:
   at this tier the finders simply see through these lures. That is not
   evidence against verify; it is evidence that these fixtures cannot measure
   it at the current finder tier.
-- **First real-code data point, and it is against the layer:** the same day,
-  a full-rigor bugs + security review of a private 34-file Vue 3 / Quasar
-  app produced 29 findings. A blind grader (an Opus 5.5 agent that saw only
-  the raw findings — not a human) marked 27 real and 2 false; the two false
-  ones were re-checked by hand against the bundler source and are false.
-  The verify layer confirmed all 29: it killed nothing, wrongly rejected
-  nothing, and confirmed both false positives at critical — one after the
-  severity check had raised it from major. Both lenses built a confident
-  static trace through the framework's env handling and missed the bundler
-  rule that makes the claimed crash impossible. Verify was 275k of the run's
-  345k output tokens. One run, one repo, a model grader: an anecdote, but
-  the only real-code one there is, and it says the finder was precise
-  (27/29) and the verify layer added no precision. Independent checks catching
+- **Real code, two runs, and neither shows verify adding precision.** Both
+  on 2026-09-23, both full-rigor bugs + security reviews of the same private
+  Vue 3 / Quasar app (~35 files), each graded by a blind Opus 5.5 agent that
+  saw only the raw findings (a model, not a human):
+  - an older branch: 29 findings, graded 27 real / 2 false. Verify
+    confirmed all 29 — both false positives at critical, one after the
+    severity check had raised it from major. Both lenses built a confident
+    static trace through the framework's env handling and missed the bundler
+    rule that makes the claimed crash impossible (re-checked by hand against
+    the bundler source). Killed 0, wrongly rejected 0.
+  - the current development branch: 29 findings, graded 28 real / 1 unsure /
+    0 false. Verify confirmed the 28 and left exactly the unsure one
+    inconclusive (its truth depends on a backend the repo does not contain) —
+    under the old binary verdict that finding would have been silently
+    rejected; now it is reported as unresolved. Killed 0 (nothing to kill),
+    wrongly rejected 0.
+
+  Verify was 275k and 224k of the runs' 345k and 293k output tokens. Two
+  runs on one repo with a model grader are anecdotes, not a trend — but they
+  are the only real-code evidence there is, and they say: the finder was
+  precise (55 real of 58, at most 2 false), and the verify layer killed no
+  false positive and let two through at critical. What it did add is the
+  three-state honesty: an unsettleable finding surfaced as unresolved
+  instead of vanishing. Independent checks catching
   plausible-but-wrong findings is the design bet this plugin is built on, and
   the eval log exists to test that bet — not to presume it. Until the log
   accumulates across VARIED fixtures, read "independently verified findings"

@@ -77,15 +77,16 @@ const stated = v => String(v.evidence ?? '').trim() !== ''
 const confirmed = verified.filter(Boolean).filter(v => v.verdict === 'confirmed' && stated(v))
 const inconclusive = verified.filter(Boolean).filter(v => !((v.verdict === 'confirmed' || v.verdict === 'refuted') && stated(v)))
 const raw = found?.findings ?? []
-const unresolved = inconclusive
+// null verify = infra failure: neither a kill nor a wrong rejection
+const unresolved = [...inconclusive, ...raw.filter((_, i) => !verified[i])]
 // <eval-verdict> pass grading — extracted verbatim by eval-verdict.test.mjs
 const matchesExpected = (e, c) => c.file.includes(e.file) && (e.mustMatch === undefined || new RegExp(e.mustMatch, 'i').test(c.problem))
 const missed = (expected ?? []).filter(e => !confirmed.some(c => matchesExpected(e, c)))
 const unexpected = expected ? confirmed.filter(c => !expected.some(e => c.file.includes(e.file))) : []
 const pass = expected ? missed.length === 0 : confirmed.length >= 1
 // free A/B baseline: grade the RAW pre-verify finder output against the same set.
-// baselineUnexpected - unexpected = false positives verify killed; missed -
-// baselineMissed = real bugs verify wrongly rejected (README "Is every stage worth it?")
+// killed = baselineUnexpected - unexpected - unexpectedInconclusive; wrongly
+// rejected = missed - baselineMissed - missedInconclusive (as tools/record-eval.js books it)
 const baseline = expected ? {
   missed: expected.filter(e => !raw.some(c => matchesExpected(e, c))),
   unexpected: raw.filter(c => !expected.some(e => c.file.includes(e.file))),

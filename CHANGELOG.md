@@ -12,6 +12,45 @@ previous bump, plus the bump itself — and the `v<version>` tag sits on that
 bump commit. Tags for 1.0.0 through 1.3.0 were created retroactively on
 2026-08-17, when this changelog was written.
 
+## [1.6.1] — 2026-09-23
+
+### Fixed
+
+- **Graded mode books only what verify decided.** A finding whose every
+  lens failed (`verifyFailed`), a waived one, a waiver-honored one and — in
+  `swarm-smoke.js` — a finding whose verify returned null used to count as a
+  false positive killed or a real bug wrongly rejected. They are now graded
+  as unresolved (`missedInconclusive` / `unexpectedInconclusive`), stripped
+  of internal fields.
+- **`finderReadOnly` now covers the verify lenses too.** They kept the
+  snippet allowance, and a snippet can replicate repo code; under
+  `finderReadOnly` they now get a no-execute clause (`execRepro` still wins
+  for bugs lenses). The security doc no longer claims the default lenses run
+  no repo code.
+- `tools/record-eval.js`: `workflow` is required (a row without it no longer
+  counts as a smoke and moves `lastSmokeVersion`), counts must be
+  non-negative integers that fit together (verify can only remove findings;
+  a graded pass means zero missed), and impossible rows fail loud.
+- `swarm-build.js` stage guard fails safe: paths are compared case-folded
+  (reported in their original spelling), `.`/`..` and doubled slashes
+  resolved, a declaration covers everything under it with or without a
+  trailing `/`, and a whole-repo declaration (`.`, `./`) covers everything.
+  The retrospect is told which parallel stages collided.
+- A finding whose verify run aborted (the severity check hit the budget
+  ceiling after the lenses) no longer vanishes from every bucket: it is
+  reported under `verifyFailed` and graded as unresolved. Under
+  `finderReadOnly` the severity check gets the no-execute clause too.
+- Docs: the "one lens alone can neither keep nor kill" rule now names its
+  lite, `execRepro` and lens-failure exceptions; README lists `--exec-repro` and
+  `--finder-read-only`; the real-code evidence covers both runs.
+
+### Changed
+
+- `evals/01-build-multiservice`: `risk-and-split` and `fit-judgment`
+  (formerly `fit-and-cost-line`) accept a design-first answer, per the
+  director spec (the fit and cost gate applies at dispatch, after the design
+  questions; case 02 scores the cost half). Contributor-facing.
+
 ## [1.6.0] — 2026-09-23
 
 ### Added
@@ -34,6 +73,13 @@ bump commit. Tags for 1.0.0 through 1.3.0 were created retroactively on
 
 ### Changed
 
+- **The director skill loads for small security-surface edits too.** Its
+  description now names the carve-out that the body already had — auth,
+  session, tenancy, schema/migration, money math, a new dependency — so a
+  one-file edit there reaches the fit gate instead of bypassing the
+  director. Measured with the plugin-eval suite: the carve-out case went
+  from 0.56 to 1.00, the negative cases stayed clean.
+
 - **Verify verdicts are three-state: `confirmed`, `refuted`, `inconclusive`.**
   The binary `isReal` verdict, with its "default to false if you cannot
   confirm it" rule, folded "cannot confirm" into "refuted": one uncertain
@@ -41,8 +87,10 @@ bump commit. Tags for 1.0.0 through 1.3.0 were created retroactively on
   positive. A lens now refutes only with counter-evidence (the input tried
   and the behaviour observed, or the file:line that rules the claim out); a
   finding is confirmed when every lens confirms, refuted when every lens
-  refutes, and inconclusive otherwise — symmetric, so one lens alone can
-  neither keep nor kill a finding another lens could not settle. Inconclusive
+  refutes, and inconclusive otherwise — symmetric, so with two lenses one
+  lens alone can neither keep nor kill a finding another lens could not
+  settle (lite runs one lens; under execRepro only executed lenses decide; a
+  lens that fails after retry leaves the survivor to decide). Inconclusive
   critical/major findings land in a new `inconclusive` bucket — unresolved,
   a critical there blocks merge — and inconclusive minors are dropped and
   counted (`inconclusiveMinors`). Every bucket carries the per-lens evidence.
@@ -90,6 +138,12 @@ bump commit. Tags for 1.0.0 through 1.3.0 were created retroactively on
   maintainer's log under the fixture label `fixtures/eval3-bait-review`. A
   check on another machine had concluded it was never recorded.
 - `tools/record-eval.test.mjs` removes its temp config dirs.
+
+### Added (contributor-facing)
+
+- `evals/`: a `claude plugin eval` suite for the director's triage and fit
+  gate (7 cases, scaffolds, a full-run script); results stay local
+  (`evals/results/` is ignored).
 
 ## [1.4.1] — 2026-08-17
 

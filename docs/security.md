@@ -177,16 +177,19 @@ no spawned processes; invalid input fails loud with a non-zero exit.
 
 `swarm-review.js` verify lenses are told not to execute repo code by
 default: they judge by reading, and may run only a self-contained snippet
-that loads no repo file (to check a language semantic, say). That rule
+that loads no repo file (to check a language semantic, say). A snippet can
+still be a verbatim replica of a repo function — live runs showed exactly
+that — so the default is "no repo module loaded", not "no repo code run". That rule
 covers the verify lenses only. The finder agents carry `Bash` and are not
 restricted — a finder may run the code it reviews on its own initiative (a
 live `eval3` run on 2026-09-23 showed the finder confirming its own claims
 with `node`). So review is never a sandbox: do not point it at code you
 would not run, with or without `execRepro`. `finderReadOnly: true` (flag
-`--finder-read-only`) tells the finders not to execute anything either, so
-with the default lenses no agent is told it may run code — the closest the
-plugin gets to a reading-only review, and still a prompt rule, not a
-mechanism. `execRepro: true` (director
+`--finder-read-only`) tells the finders not to execute anything, and takes
+the snippet allowance away from the verify lenses too, so no agent is told
+it may run code (unless `execRepro` is also set, which still wins for bugs
+lenses) — the closest the plugin gets to a reading-only review, and still a
+prompt rule, not a mechanism. `execRepro: true` (director
 flag `--exec-repro`) changes that for `bugs` findings: the lens builds the
 finding's repro and runs it — a one-liner loading the module by its
 absolute path, or a scratch file under the OS temp directory — and a

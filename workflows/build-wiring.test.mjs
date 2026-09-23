@@ -83,6 +83,7 @@ test('fix round wiring: merge, supersede, re-test, retrospect; same-stage tasks 
   assert.equal(result.retrospect.coherent, true)
   assert.ok(state.maxActive >= 2, `same-stage tasks must overlap (maxActive ${state.maxActive})`)
   assert.ok(prompts.filter(p => p.label.startsWith('impl:')).every(p => p.prompt.includes('IN PARALLEL') && p.prompt.includes('src/t')), 'parallel implementers get their declared files')
+  assert.ok(prompts.filter(p => p.label.startsWith('impl:')).every(p => p.prompt.includes('an entry covers itself and everything under it')), 'the brief states the same coverage rule the guard applies')
   // the driver has BOTH tasks report a.js + b.js although each declared its own file:
   // the post-hoc guard must surface both violations
   assert.deepEqual(result.stageOverlap, [
@@ -90,6 +91,8 @@ test('fix round wiring: merge, supersede, re-test, retrospect; same-stage tasks 
     { stage: 's', file: 'b.js', tasks: ['T1', 'T2'] },
   ])
   assert.deepEqual(result.undeclaredWrites.map(u => [u.task, u.files]), [['T1', ['a.js', 'b.js']], ['T2', ['a.js', 'b.js']]])
+  const retro = prompts.find(p => p.label === 'retrospect')
+  assert.ok(retro && retro.prompt.includes('Parallel stages did not stay file-disjoint'), 'the retrospect is told which parallel stages collided')
 })
 
 test('persistent tester FAIL is fatal: sequential successor never dispatched, retrospect skipped', async () => {

@@ -22,7 +22,7 @@ const run = (dir, args = [], input) =>
     input, encoding: 'utf8',
   })
 const graded = over => JSON.stringify({
-  claudeCode: '2.1.201', fixture: '/fx/eval', pass: true,
+  claudeCode: '2.1.201', fixture: '/fx/eval', workflow: 'smoke', pass: true,
   missed: 0, unexpected: 0, baselineMissed: 0, baselineUnexpected: 0,
   confirmed: 5, raw: 5, outputTokens: 13000, ...over,
 })
@@ -113,7 +113,7 @@ test('optional run conditions are stored; date, host and pluginVersion are stamp
   const dir = freshDir()
   const r = run(dir, [graded({
     workflow: 'review', rigor: 'full', verify: 'strict', finderModel: 'opus', verifyModel: 'sonnet',
-    notes: 'suspicion-biased target', missedInconclusive: 0, unexpectedInconclusive: 2,
+    notes: 'suspicion-biased target', missedInconclusive: 0, unexpectedInconclusive: 2, baselineUnexpected: 2,
   })])
   assert.equal(r.status, 0, r.stderr)
   const line = JSON.parse(logLines(dir)[0])
@@ -134,14 +134,14 @@ test('absent optional fields are not written as nulls', () => {
   const dir = freshDir()
   run(dir, [graded()])
   const line = JSON.parse(logLines(dir)[0])
-  for (const k of ['workflow', 'rigor', 'verify', 'finderModel', 'verifyModel', 'notes', 'missedInconclusive', 'unexpectedInconclusive']) {
+  for (const k of ['rigor', 'verify', 'finderModel', 'verifyModel', 'notes', 'missedInconclusive', 'unexpectedInconclusive']) {
     assert.equal(k in line, false, `${k} must be absent, not null`)
   }
 })
 
 test('invalid or unknown optional fields fail loud and write nothing', () => {
   const dir = freshDir()
-  for (const bad of [{ workflow: 'review', rigor: 'max' }, { workflow: 'review', verify: 'paranoid' }, { workflow: 'build' }, { workflow: 'smoke', missedInconclusive: '2' }, { workflow: 'review', finderModel: 5 }, { workflow: 'review', execRepro: 'yes' }, { finderReadOnly: true }, { rigour: 'full' }, { notes: 'x'.repeat(301) }, { rigor: 'lite' }, { inconclusive: 1 }]) {
+  for (const bad of [{ workflow: 'review', rigor: 'max' }, { workflow: 'review', verify: 'paranoid' }, { workflow: 'build' }, { workflow: 'smoke', missedInconclusive: '2' }, { workflow: 'review', finderModel: 5 }, { workflow: 'review', execRepro: 'yes' }, { finderReadOnly: 'yes' }, { rigour: 'full' }, { notes: 'x'.repeat(301) }, { workflow: undefined }, { inconclusive: 1 }]) {
     const r = run(dir, [graded(bad)])
     assert.notEqual(r.status, 0, `${JSON.stringify(bad)} must be rejected`)
   }
@@ -201,4 +201,31 @@ test('execRepro and finderReadOnly are stored and split the totals into their ow
   assert.deepEqual(Object.keys(out.byMode).sort(), ['review/lite', 'review/lite/exec', 'review/lite/ro'])
   assert.equal(out.byMode['review/lite/ro'].falsePositivesKilled, 2)
   assert.equal(JSON.parse(logLines(dir)[0]).finderReadOnly, true)
+})
+
+test('workflow is required: a row without it is rejected, never counted as a smoke', () => {
+  const dir = freshDir()
+  writeFileSync(join(dir, 'codeswarm.json'), JSON.stringify({ lastSmokeVersion: '1.0.0' }))
+  const r = run(dir, [graded({ workflow: undefined, claudeCode: '9.9.9' })])
+  assert.notEqual(r.status, 0)
+  assert.match(r.stderr, /workflow/)
+  assert.equal(JSON.parse(readFileSync(join(dir, 'codeswarm.json'), 'utf8')).lastSmokeVersion, '1.0.0')
+})
+
+test('counts that cannot fit together fail loud and write nothing', () => {
+  const dir = freshDir()
+  for (const bad of [
+    { missed: -1 }, { raw: 1.5 }, { confirmed: 6, raw: 5 },
+    { unexpected: 2, baselineUnexpected: 1 },
+    { missed: 0, baselineMissed: 1 },
+    { workflow: 'review', missed: 0, missedInconclusive: 1 },
+    { workflow: 'review', baselineUnexpected: 2, unexpected: 1, unexpectedInconclusive: 2 },
+    { pass: true, missed: 3 }, { pass: false, missed: 0 },
+    { raw: 2, confirmed: 2, baselineUnexpected: 5 },
+    { confirmed: 0, raw: 5, unexpected: 2, baselineUnexpected: 2 },
+  ]) {
+    const r = run(dir, [graded(bad)])
+    assert.notEqual(r.status, 0, `${JSON.stringify(bad)} must be rejected`)
+  }
+  assert.equal(existsSync(join(dir, 'codeswarm-eval-log.jsonl')), false)
 })

@@ -11,17 +11,18 @@
 //   node tools/record-eval.js < result.json            same, JSON on stdin
 //
 // Graded JSON fields (all required):
-//   {"claudeCode":"2.1.201","fixture":"<dir>","pass":true,"missed":0,
-//    "unexpected":0,"baselineMissed":0,"baselineUnexpected":0,
+//   {"claudeCode":"2.1.201","fixture":"<dir>","workflow":"smoke","pass":true,
+//    "missed":0,"unexpected":0,"baselineMissed":0,"baselineUnexpected":0,
 //    "confirmed":5,"raw":5,"outputTokens":13000}
+// Counts must be non-negative integers that fit together (verify can only
+// remove findings, never add them) — an impossible row fails loud.
 // Optional run conditions (stored when present, validated loud):
-//   "workflow":"smoke"|"review", "rigor":"lite"|"full", "verify":"normal"|"strict",
+//   "rigor":"lite"|"full", "verify":"normal"|"strict",
 //   "finderModel", "verifyModel", "notes" (strings), "execRepro", "finderReadOnly" (booleans),
 //   "missedInconclusive", "unexpectedInconclusive" (numbers — planted bugs and
 //   false positives verify left unresolved: neither wrongly rejected nor killed)
-// Any other field is an error — a typo'd condition must never vanish silently;
-// every condition but notes requires workflow (else the row bins as unlabelled).
-// lastSmokeVersion moves only on a passing SMOKE row (workflow absent or smoke):
+// Any other field is an error — a typo'd condition must never vanish silently.
+// lastSmokeVersion moves only on a passing SMOKE row (workflow "smoke"):
 // the canary is defined on the smoke, not on whatever graded run passed last.
 // Stamped by the script itself: date, host, pluginVersion.
 //
@@ -46,11 +47,12 @@ const REQUIRED = {
   claudeCode: 'string', fixture: 'string', pass: 'boolean',
   missed: 'number', unexpected: 'number', baselineMissed: 'number',
   baselineUnexpected: 'number', confirmed: 'number', raw: 'number', outputTokens: 'number',
+  workflow: ['smoke', 'review'],
 }
 // array = enum, string = typeof. Without these, rows run at lite and full rigor
 // (or through smoke and review) were indistinguishable in the log.
 const OPTIONAL = {
-  workflow: ['smoke', 'review'], rigor: ['lite', 'full'], verify: ['normal', 'strict'],
+  rigor: ['lite', 'full'], verify: ['normal', 'strict'],
   finderModel: 'string', verifyModel: 'string', notes: 'string',
   execRepro: 'boolean', finderReadOnly: 'boolean',
   missedInconclusive: 'number', unexpectedInconclusive: 'number',
@@ -125,8 +127,24 @@ async function main () {
   try { r = JSON.parse(raw) } catch { fail('expected the graded-run JSON as an argument or on stdin') }
   if (typeof r !== 'object' || r === null || Array.isArray(r)) fail('expected a JSON object')
   for (const [k, t] of Object.entries(REQUIRED)) {
-    if (typeof r[k] !== t) fail(`field "${k}" must be a ${t} (got ${JSON.stringify(r[k])})`)
+    if (Array.isArray(t) ? !t.includes(r[k]) : typeof r[k] !== t) fail(`field "${k}" must be ${Array.isArray(t) ? t.join('|') : `a ${t}`} (got ${JSON.stringify(r[k])})`)
   }
+  const COUNTS = ['missed', 'unexpected', 'baselineMissed', 'baselineUnexpected', 'confirmed', 'raw', 'outputTokens', 'missedInconclusive', 'unexpectedInconclusive']
+  for (const k of COUNTS) {
+    if (r[k] !== undefined && (!Number.isInteger(r[k]) || r[k] < 0)) fail(`field "${k}" must be a non-negative integer (got ${JSON.stringify(r[k])})`)
+  }
+  const n = k => r[k] ?? 0
+  const impossible = [
+    [n('confirmed') > n('raw'), 'confirmed > raw'],
+    [r.pass !== (n('missed') === 0), 'pass must equal (missed === 0) for a graded run'],
+    [n('baselineUnexpected') > n('raw'), 'baselineUnexpected > raw'],
+    [n('unexpected') > n('confirmed'), 'unexpected > confirmed'],
+    [n('unexpected') > n('baselineUnexpected'), 'unexpected > baselineUnexpected (verify cannot add a false positive)'],
+    [n('missed') < n('baselineMissed'), 'missed < baselineMissed (verify cannot find a bug the finder missed)'],
+    [n('unexpectedInconclusive') > n('baselineUnexpected') - n('unexpected'), 'unexpectedInconclusive > baselineUnexpected - unexpected'],
+    [n('missedInconclusive') > n('missed') - n('baselineMissed'), 'missedInconclusive > missed - baselineMissed'],
+  ].filter(([bad]) => bad).map(([, why]) => why)
+  if (impossible.length) fail(`counts do not fit together: ${impossible.join('; ')}`)
   const optional = Object.keys(OPTIONAL).filter(k => r[k] !== undefined)
   for (const k of optional) {
     const t = OPTIONAL[k]
@@ -135,8 +153,6 @@ async function main () {
     }
   }
   if (typeof r.notes === 'string' && r.notes.length > NOTES_MAX) fail(`field "notes" is a run-condition note, max ${NOTES_MAX} chars (got ${r.notes.length}) — never findings text`)
-  const unlabelled = optional.filter(k => k !== 'workflow' && k !== 'notes')
-  if (unlabelled.length && r.workflow === undefined) fail(`field(s) ${unlabelled.join(', ')} need "workflow" (smoke|review) — without it the row cannot be binned`)
   const unknown = Object.keys(r).filter(k => !(k in REQUIRED) && !(k in OPTIONAL))
   if (unknown.length) fail(`unknown field(s) ${unknown.map(k => `"${k}"`).join(', ')} — valid optional fields: ${Object.keys(OPTIONAL).join(', ')}`)
   // the script stamps date/host/version itself — fewer fields a model can get wrong
@@ -151,7 +167,7 @@ async function main () {
   }
   fs.mkdirSync(configDir, { recursive: true })
   fs.appendFileSync(logPath, JSON.stringify(line) + '\n')
-  const isSmoke = r.workflow === undefined || r.workflow === 'smoke'
+  const isSmoke = r.workflow === 'smoke'
   const lastSmokeVersion = !r.pass ? 'skipped (failing run)' : !isSmoke ? 'skipped (not a smoke run)' : recordVersion(r.claudeCode)
   console.log(JSON.stringify({ logged: true, lastSmokeVersion, ...totals() }))
 }

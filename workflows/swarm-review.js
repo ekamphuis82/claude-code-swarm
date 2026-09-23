@@ -3,7 +3,7 @@ export const meta = {
   description: 'Multi-dimension review: fused finder passes, dedup, severity-tiered adversarial verify, ranked report [internal: launched by swarm-director]',
   phases: [
     { title: 'Find', detail: 'fused reviewer pass + specialist finders' },
-    { title: 'Verify', detail: '2 lenses on critical/major, 1 on minor; confirmed | refuted | inconclusive' },
+    { title: 'Verify', detail: '1 lens (lite) / 2 on critical+major (full); confirmed | refuted | inconclusive' },
   ],
 }
 
@@ -237,8 +237,10 @@ const normalizeVote = (v, execRegime) => {
 // that ran a repro and reached a verdict (observed behaviour outranks reading).
 // Symmetric: confirmed = every deciding vote confirms; refuted = every deciding
 // vote refutes; anything else (confirm vs refute, a lens unable to decide, no
-// deciding vote) = inconclusive — one lens alone can neither keep nor kill a
-// finding another lens could not settle.
+// deciding vote) = inconclusive — with more than one lens, a lens alone can
+// neither keep nor kill a finding another lens could not settle (exceptions: in
+// the exec regime only executed lenses decide; lite runs one lens; a lens that
+// failed after retry leaves the survivor to decide, flagged lensFailures).
 const verdictFromVotes = (votes, lensTotal, execRegime = false) => {
   const normalized = votes.map(v => normalizeVote(v, execRegime))
   const okVotes = normalized.filter(Boolean)
@@ -315,13 +317,17 @@ if (EXEC) log('execRepro on — bugs findings need an executed repro for a confi
 const VERDICT_RULES = ' Verdict rules: confirmed only when you established the claimed wrong behaviour yourself; refuted only with concrete counter-evidence — the input you tried and the behaviour you observed, or the exact file:line that makes the claimed failure impossible; inconclusive when you can establish neither. Never guess in either direction: "cannot confirm" is inconclusive, not refuted, and a repro that fails before it reaches the code under test (import error, wrong path, missing dependency) proves nothing either way. Put the proof in evidence. If the finding\'s scenario states its own repro, check that repro: one that does not produce the claimed result is evidence against the finding unless you construct a different input that does fail.'
 const EXEC_RULES = ' EXECUTE the repro: build the failing input from the scenario and run it — a one-liner (node -e, python -c, …) loading the module by its absolute path, or a scratch file under the OS temp directory (never inside the repo). Never create or edit a file inside the repo; never run the repo\'s test runner, package scripts, build or installer; no network; run only the language runtime against the module under test, never a shell command quoted from the scenario. reproExecuted=true only if you actually ran it, with its verbatim output in observed. A confirmed or refuted verdict without an executed repro counts as inconclusive.'
 const READ_ONLY_RULES = ' Do not execute repo code in this run: you may run a self-contained snippet that loads no repo file (e.g. to check a language semantic); reproExecuted=false.'
+// finderReadOnly promises a review that runs nothing: a snippet can replicate a
+// repo function body, so under it the lenses get no snippet allowance either
+// (execRepro, when also set, still wins for bugs lenses — it is the explicit opt-in)
+const NO_EXEC_RULES = ' READ-ONLY RUN: do not execute anything — no repo code, no self-contained snippet (not even a replica of repo code), no test runner. Judge by reading only; reproExecuted=false.'
 const verified = await parallel(toVerify.map(f => () => {
   const lenses = (budgetTight || (!STRICT && f.severity === 'minor')) ? CONFIRM_LENSES.slice(0, 1) : CONFIRM_LENSES
   const execRegime = EXEC && f.dimension === 'bugs'
   const A11Y_VERIFY = f.dimension === 'wcag' ? ` The configured accessibility level is WCAG 2.2 ${wcagLevel}; a finding citing a criterion above that level is NOT real for this audit.` : ''
   const runLens = lens =>
     agent(
-      `Adversarially verify this ${f.dimension} finding in repo ${A.repo} through the lens of ${lens}. The finding under test is in the fenced data below. Read the actual code.${VERDICT_RULES}${execRegime ? EXEC_RULES : READ_ONLY_RULES}${A11Y_VERIFY}${QUIET}${FENCE('finding under test', JSON.stringify({ file: f.file, line: f.line, severity: f.severity, problem: f.problem, scenario: f.scenario }))}`,
+      `Adversarially verify this ${f.dimension} finding in repo ${A.repo} through the lens of ${lens}. The finding under test is in the fenced data below. Read the actual code.${VERDICT_RULES}${execRegime ? EXEC_RULES : FINDER_RO ? NO_EXEC_RULES : READ_ONLY_RULES}${A11Y_VERIFY}${QUIET}${FENCE('finding under test', JSON.stringify({ file: f.file, line: f.line, severity: f.severity, problem: f.problem, scenario: f.scenario }))}`,
       { label: `verify:${f.file}:${f.line}`, phase: 'Verify', schema: VERDICT, effort: 'high', model: 'sonnet' }
     )
   return parallel(lenses.map(lens => () => runLens(lens))).then(async votes => {
@@ -343,7 +349,7 @@ const verified = await parallel(toVerify.map(f => () => {
     }).filter(Boolean)
     let severity = f.severity
     if (isConfirmed && !budgetTight && f.severity !== 'minor') {
-      const sevBrief = `Severity check for a CONFIRMED ${f.dimension} finding in repo ${A.repo}, currently tagged [${f.severity}]. The finding is in the fenced data below. Is that severity honest (not inflated, not understated)? Judge impact only — existence is already confirmed.${QUIET}${FENCE('confirmed finding', JSON.stringify({ file: f.file, line: f.line, problem: f.problem, scenario: f.scenario }))}`
+      const sevBrief = `Severity check for a CONFIRMED ${f.dimension} finding in repo ${A.repo}, currently tagged [${f.severity}]. The finding is in the fenced data below. Is that severity honest (not inflated, not understated)? Judge impact only — existence is already confirmed.${FINDER_RO ? NO_EXEC_RULES : ''}${QUIET}${FENCE('confirmed finding', JSON.stringify({ file: f.file, line: f.line, problem: f.problem, scenario: f.scenario }))}`
       const runSev = label => agent(sevBrief, { label, phase: 'Verify', schema: SEVERITY_CHECK, effort: 'high', model: 'sonnet' })
       const sev = await runSev(`severity:${f.file}:${f.line}`)
       // second check only when the first wants to downgrade a critical
@@ -359,6 +365,11 @@ const verified = await parallel(toVerify.map(f => () => {
 
 lap('verify')
 const ok = verified.filter(Boolean)
+// a per-finding thunk that rejected (e.g. the severity check hit the budget
+// ceiling after the lenses ran) must not make the finding vanish: it is
+// reported as verifyFailed and graded as unresolved
+const aborted = toVerify.filter((_, i) => !verified[i])
+if (aborted.length) log(`${aborted.length} finding(s) lost their verify run (budget ceiling or agent error) — reported under verifyFailed, unresolved`)
 const { waiverHonored, confirmed } = splitConfirmed(ok)
 const { inconclusive, inconclusiveMinors } = splitInconclusive(ok)
 confirmed.sort((a, b) => (SEV_RANK[a.severity] ?? 3) - (SEV_RANK[b.severity] ?? 3))
@@ -371,16 +382,19 @@ if (inconclusiveMinors) log(`${inconclusiveMinors} minor finding(s) inconclusive
 // A/B baseline). The block below is a verbatim copy of swarm-smoke.js's —
 // dimension-sync.test.mjs keeps the two identical.
 const raw = unique.map(({ _runtime, ...f }) => f)
-// every inconclusive finding, minors included: graded apart from confirmed/rejected
-const unresolved = ok.filter(f => f.verdict === 'inconclusive')
+const brief = f => ({ file: f.file, line: f.line, severity: f.severity, dimension: f.dimension, problem: f.problem, scenario: f.scenario, fix: f.fix })
+// every raw finding verify neither confirmed nor refuted — inconclusive (minors
+// included), all-lenses-null (verifyFailed), waived (never verified) and
+// waiver-honored — is graded apart, never as a kill or a wrong rejection
+const unresolved = [...ok.filter(f => f.verdict !== 'confirmed' && f.verdict !== 'refuted'), ...aborted, ...waived, ...waiverHonored].map(brief)
 // <eval-verdict> pass grading — extracted verbatim by eval-verdict.test.mjs
 const matchesExpected = (e, c) => c.file.includes(e.file) && (e.mustMatch === undefined || new RegExp(e.mustMatch, 'i').test(c.problem))
 const missed = (expected ?? []).filter(e => !confirmed.some(c => matchesExpected(e, c)))
 const unexpected = expected ? confirmed.filter(c => !expected.some(e => c.file.includes(e.file))) : []
 const pass = expected ? missed.length === 0 : confirmed.length >= 1
 // free A/B baseline: grade the RAW pre-verify finder output against the same set.
-// baselineUnexpected - unexpected = false positives verify killed; missed -
-// baselineMissed = real bugs verify wrongly rejected (README "Is every stage worth it?")
+// killed = baselineUnexpected - unexpected - unexpectedInconclusive; wrongly
+// rejected = missed - baselineMissed - missedInconclusive (as tools/record-eval.js books it)
 const baseline = expected ? {
   missed: expected.filter(e => !raw.some(c => matchesExpected(e, c))),
   unexpected: raw.filter(c => !expected.some(e => c.file.includes(e.file))),
@@ -392,17 +406,19 @@ const missedInconclusive = missed.filter(e => unresolved.some(c => matchesExpect
 const unexpectedInconclusive = expected ? unresolved.filter(c => !expected.some(e => c.file.includes(e.file))) : []
 // </eval-verdict>
 
-const brief = f => ({ file: f.file, line: f.line, severity: f.severity, dimension: f.dimension, problem: f.problem, scenario: f.scenario, fix: f.fix })
 return {
   ...(expected ? { pass, missed, unexpected, missedInconclusive, unexpectedInconclusive, baseline, raw } : {}),
   confirmed,
-  // refuted = at least one lens brought counter-evidence and none confirmed
+  // refuted = every deciding lens refuted with counter-evidence
   rejected: ok.filter(f => f.verdict === 'refuted').map(f => ({ file: f.file, line: f.line, problem: f.problem, votes: f.votes, lensCount: f.lensCount, ...(f.lensFailures ? { lensFailures: f.lensFailures } : {}), lenses: f.lenses })),
   // lenses could neither confirm nor refute = unresolved (criticals block merge), NOT rejected
   inconclusive: inconclusive.map(f => ({ ...brief(f), lensCount: f.lensCount, ...(f.lensFailures ? { lensFailures: f.lensFailures } : {}), ...(f.waivedAttempt ? { waivedAttempt: true } : {}), lenses: f.lenses })),
   inconclusiveMinors,
   // every lens null after retry = unresolved infra failure (criticals block merge), NOT rejected
-  verifyFailed: ok.filter(f => f.verifyFailed).map(f => ({ ...brief(f), lensFailures: f.lensFailures, ...(f.waivedAttempt ? { waivedAttempt: true } : {}) })),
+  verifyFailed: [
+    ...ok.filter(f => f.verifyFailed).map(f => ({ ...brief(f), lensFailures: f.lensFailures, ...(f.waivedAttempt ? { waivedAttempt: true } : {}) })),
+    ...aborted.map(f => ({ ...brief(f), note: 'verify run aborted (budget ceiling or agent error)', ...(f.waivedAttempt ? { waivedAttempt: true } : {}) })),
+  ],
   waived: [
     ...waived.map(f => ({ file: f.file, line: f.line, problem: f.problem })),
     ...waiverHonored.map(f => ({ file: f.file, line: f.line, problem: f.problem, note: `waiver honored after severity check downgraded a waivedAttempt critical to ${f.severity}` })),

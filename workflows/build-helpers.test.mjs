@@ -92,38 +92,40 @@ test('fileKey: absolute, relative, ./ and backslash spellings of one file collid
   const keys = ['/repo/src/a.js', 'src/a.js', './src/a.js', '\\repo\\src\\a.js'].map(p => fileKey('/repo', p, false))
   assert.deepEqual(new Set(keys), new Set(['src/a.js']))
 })
-test('fileKey: case folds only when told to (case-insensitive FS)', () => {
-  assert.equal(fileKey('C:/Repo', 'C:/Repo/Src/A.js', true), 'src/a.js')
-  assert.equal(fileKey('/repo', 'Src/A.js', false), 'Src/A.js')
+test('fileKey: always case-folds and resolves . / .. / doubled slashes (the guard must fail safe)', () => {
+  assert.equal(fileKey('C:/Repo', 'C:/Repo/Src/A.js'), 'src/a.js')
+  assert.equal(fileKey('/repo', 'Src/A.js'), 'src/a.js', 'NTFS/APFS treat these as one file even where the harness cannot tell')
+  assert.equal(fileKey('/repo', 'src/lib/../a.js'), 'src/a.js')
+  assert.equal(fileKey('/repo', 'src//./a.js'), 'src/a.js')
 })
 
 // --- guardStage: pre-hoc, fail-safe (no declaration = no parallelism)
 const stage = tasks => ({ key: 's', tasks })
 test('guardStage: disjoint declarations keep the stage parallel', () => {
   const st = stage([{ id: 1, files: ['a.js'] }, { id: 2, files: ['b.js'] }])
-  const { stages, reason } = guardStage(st, '/repo', false)
+  const { stages, reason } = guardStage(st, '/repo')
   assert.equal(reason, null)
   assert.deepEqual(stages, [st])
 })
 test('guardStage: a co-staged task WITHOUT files splits the stage into sequential singles', () => {
-  const { stages, reason } = guardStage(stage([{ id: 1, files: ['a.js'] }, { id: 2 }]), '/repo', false)
+  const { stages, reason } = guardStage(stage([{ id: 1, files: ['a.js'] }, { id: 2 }]), '/repo')
   assert.deepEqual(stages.map(s => s.tasks.map(t => t.id)), [[1], [2]])
   assert.match(reason, /2 declare no files/)
 })
 test('guardStage: overlapping declarations split the stage, spelled differently or not', () => {
-  const { stages, reason } = guardStage(stage([{ id: 1, files: ['src/a.js'] }, { id: 2, files: ['/repo/src/a.js', 'b.js'] }]), '/repo', false)
+  const { stages, reason } = guardStage(stage([{ id: 1, files: ['src/a.js'] }, { id: 2, files: ['/repo/src/a.js', 'b.js'] }]), '/repo')
   assert.equal(stages.length, 2)
   assert.match(reason, /src\/a\.js \(1 \+ 2\)/)
 })
 test('guardStage: a directory entry (trailing /) clashes with any file under it', () => {
-  const { stages, reason } = guardStage(stage([{ id: 1, files: ['src/api/'] }, { id: 2, files: ['src/api/users.js'] }]), '/repo', false)
+  const { stages, reason } = guardStage(stage([{ id: 1, files: ['src/api/'] }, { id: 2, files: ['src/api/users.js'] }]), '/repo')
   assert.equal(stages.length, 2)
-  assert.match(reason, /src\/api\/ ~ src\/api\/users\.js \(1 \+ 2\)/)
-  assert.equal(guardStage(stage([{ id: 1, files: ['src/api/'] }, { id: 2, files: ['src/apix.js'] }]), '/repo', false).reason, null, 'prefix is per directory, not per string')
+  assert.match(reason, /src\/api ~ src\/api\/users\.js \(1 \+ 2\)/)
+  assert.equal(guardStage(stage([{ id: 1, files: ['src/api/'] }, { id: 2, files: ['src/apix.js'] }]), '/repo').reason, null, 'prefix is per directory, not per string')
 })
 test('guardStage: singles pass untouched, declared or not', () => {
   const st = stage([{ id: 1 }])
-  assert.deepEqual(guardStage(st, '/repo', false), { stages: [st], reason: null })
+  assert.deepEqual(guardStage(st, '/repo'), { stages: [st], reason: null })
 })
 
 // --- stageOverlap / undeclaredWrites: post-hoc, report-only
@@ -133,16 +135,38 @@ test('stageOverlap: a file two co-staged tasks both report is flagged with both 
     { task: 'T2', implemented: { filesChanged: ['a.js'] } },
     { task: 'T3', implemented: null, error: 'implementer returned null' },
   ]
-  assert.deepEqual(stageOverlap('s', rs, '/repo', false), [{ stage: 's', file: 'a.js', tasks: ['T1', 'T2'] }])
+  assert.deepEqual(stageOverlap('s', rs, '/repo'), [{ stage: 's', file: 'a.js', tasks: ['T1', 'T2'] }])
 })
 test('stageOverlap: disjoint reports = no overlap', () => {
-  assert.deepEqual(stageOverlap('s', [{ task: 1, implemented: { filesChanged: ['a.js'] } }, { task: 2, implemented: { filesChanged: ['b.js'] } }], '/repo', false), [])
+  assert.deepEqual(stageOverlap('s', [{ task: 1, implemented: { filesChanged: ['a.js'] } }, { task: 2, implemented: { filesChanged: ['b.js'] } }], '/repo'), [])
 })
 test('undeclaredWrites: a directory declaration covers the files under it', () => {
-  assert.deepEqual(undeclaredWrites({ files: ['src/api/'] }, { implemented: { filesChanged: ['src/api/a.js', 'src/b.js'] } }, '/repo', false), ['src/b.js'])
+  assert.deepEqual(undeclaredWrites({ files: ['src/api/'] }, { implemented: { filesChanged: ['src/api/a.js', 'src/b.js'] } }, '/repo'), ['src/b.js'])
 })
 test('undeclaredWrites: files reported outside the declaration; nothing for undeclared tasks', () => {
-  assert.deepEqual(undeclaredWrites({ files: ['a.js'] }, { implemented: { filesChanged: ['/repo/a.js', 'shared.js'] } }, '/repo', false), ['shared.js'])
-  assert.deepEqual(undeclaredWrites({}, { implemented: { filesChanged: ['z.js'] } }, '/repo', false), [])
-  assert.deepEqual(undeclaredWrites({ files: ['a.js'] }, { implemented: null }, '/repo', false), [])
+  assert.deepEqual(undeclaredWrites({ files: ['a.js'] }, { implemented: { filesChanged: ['/repo/a.js', 'shared.js'] } }, '/repo'), ['shared.js'])
+  assert.deepEqual(undeclaredWrites({}, { implemented: { filesChanged: ['z.js'] } }, '/repo'), [])
+  assert.deepEqual(undeclaredWrites({ files: ['a.js'] }, { implemented: null }, '/repo'), [])
+})
+
+test('guardStage: a directory declared WITHOUT a trailing slash still covers its files', () => {
+  const { stages } = guardStage(stage([{ id: 1, files: ['src/api'] }, { id: 2, files: ['src/api/users.js'] }]), '/repo')
+  assert.equal(stages.length, 2)
+})
+test('guardStage: case and ../ spellings of one file clash', () => {
+  assert.equal(guardStage(stage([{ id: 1, files: ['Src/A.js'] }, { id: 2, files: ['src/a.js'] }]), '/repo').stages.length, 2)
+  assert.equal(guardStage(stage([{ id: 1, files: ['src/x/../a.js'] }, { id: 2, files: ['./src/a.js'] }]), '/repo').stages.length, 2)
+})
+
+test('covers: a whole-repo declaration (".", "./", the root) covers every file — the guard must not fail open', () => {
+  for (const whole of ['.', './', '/repo', '/repo/', 'src/..']) {
+    assert.equal(fileKey('/repo', whole), '')
+    assert.equal(guardStage(stage([{ id: 1, files: [whole] }, { id: 2, files: ['src/a.js'] }]), '/repo').stages.length, 2, whole)
+  }
+  assert.deepEqual(undeclaredWrites({ files: ['./'] }, { implemented: { filesChanged: ['src/a.js'] } }, '/repo'), [])
+})
+test('reports keep the original spelling; comparison stays case-folded', () => {
+  const rs = [{ task: 'T1', implemented: { filesChanged: ['/repo/src/MyButton.vue'] } }, { task: 'T2', implemented: { filesChanged: ['src/mybutton.vue'] } }]
+  assert.deepEqual(stageOverlap('s', rs, '/repo'), [{ stage: 's', file: 'src/MyButton.vue', tasks: ['T1', 'T2'] }])
+  assert.deepEqual(undeclaredWrites({ files: ['src/a.js'] }, { implemented: { filesChanged: ['src/Other.vue'] } }, '/repo'), ['src/Other.vue'])
 })

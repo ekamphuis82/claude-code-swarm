@@ -111,28 +111,41 @@ const groupStages = tasks => {
   }
   return stageList
 }
-// path key for the overlap checks: repo-relative, forward slashes, no leading
-// ./, case-folded when the FS is case-insensitive (caseFold is passed in so the
-// block stays pure)
-const fileKey = (repo, p, caseFold) => {
-  const norm = x => { const v = String(x).replace(/\\/g, '/'); return caseFold ? v.toLowerCase() : v }
-  const root = norm(repo).replace(/\/+$/, '')
-  const k = norm(p).replace(/^\.\//, '')
-  return k.startsWith(root + '/') ? k.slice(root.length + 1) : k
+// path key for the overlap checks: repo-relative, forward slashes, . / .. and
+// doubled slashes resolved, ALWAYS case-folded — the check must fail safe: a
+// false clash only costs parallelism, a missed one lets two tasks write one file
+const relSegs = (repo, p) => {
+  const segs = x => {
+    const out = []
+    for (const s of String(x).replace(/\\/g, '/').split('/')) {
+      if (s === '' || s === '.') continue
+      if (s === '..') out.pop(); else out.push(s)
+    }
+    return out
+  }
+  const root = segs(repo).map(s => s.toLowerCase())
+  const k = segs(p)
+  const inRoot = root.length && root.every((s, i) => (k[i] ?? '').toLowerCase() === s)
+  return inRoot ? k.slice(root.length) : k
 }
-// a declaration entry ending in "/" is a directory: it covers every file under it
-const covers = (decl, k) => decl.endsWith('/') ? k.startsWith(decl) : k === decl
+const fileKey = (repo, p) => relSegs(repo, p).join('/').toLowerCase()
+// what reports show: same resolution, original spelling (a lowercased path may not exist)
+const displayPath = (repo, p) => relSegs(repo, p).join('/')
+// a declaration covers itself and everything under it (a directory, with or
+// without a trailing /) — segment-wise, so 'src/api' never covers 'src/apix.js';
+// the empty key is the whole repo ('.', './', the repo root) and covers everything
+const covers = (decl, k) => decl === '' || k === decl || k.startsWith(decl + '/')
 // PRE-hoc parallelism guard: a co-staged group runs in parallel only when EVERY
 // task declares its files and no two declarations share a file; otherwise it
 // splits into sequential singles. Fail-safe: no declaration = no parallelism.
 // Shared API dependencies between tasks are NOT checkable here — that stays a
 // director judgment (swarm-director SKILL.md).
-const guardStage = (st, repo, caseFold) => {
+const guardStage = (st, repo) => {
   if (st.tasks.length < 2) return { stages: [st], reason: null }
   const undeclared = st.tasks.filter(t => !Array.isArray(t.files) || !t.files.length)
   const clashes = []
   if (!undeclared.length) {
-    const keys = st.tasks.map(t => [...new Set(t.files.map(f => fileKey(repo, f, caseFold)))])
+    const keys = st.tasks.map(t => [...new Set(t.files.map(f => fileKey(repo, f)))])
     for (let i = 0; i < keys.length; i++) {
       for (let j = i + 1; j < keys.length; j++) {
         for (const a of keys[i]) {
@@ -151,29 +164,31 @@ const guardStage = (st, repo, caseFold) => {
 }
 // POST-hoc, after a parallel stage: files more than one co-staged task REPORTS
 // having changed (filesChanged is self-reported — only as good as the claim)
-const stageOverlap = (stageKey, results, repo, caseFold) => {
+const stageOverlap = (stageKey, results, repo) => {
   const owners = new Map()
   for (const r of results) {
-    for (const k of new Set((r?.implemented?.filesChanged ?? []).map(f => fileKey(repo, f, caseFold)))) {
-      owners.set(k, [...(owners.get(k) ?? []), String(r.task)])
+    const mine = new Map((r?.implemented?.filesChanged ?? []).map(f => [fileKey(repo, f), displayPath(repo, f)]))
+    for (const [k, shown] of mine) {
+      const o = owners.get(k) ?? { file: shown, tasks: [] }
+      o.tasks.push(String(r.task))
+      owners.set(k, o)
     }
   }
-  return [...owners].filter(([, tasks]) => tasks.length > 1).map(([file, tasks]) => ({ stage: stageKey, file, tasks }))
+  return [...owners.values()].filter(o => o.tasks.length > 1).map(o => ({ stage: stageKey, file: o.file, tasks: o.tasks }))
 }
 // ...and files a task reports outside its own declaration (the parallel
 // assumption can break without two reports colliding)
-const undeclaredWrites = (task, result, repo, caseFold) => {
+const undeclaredWrites = (task, result, repo) => {
   if (!Array.isArray(task.files) || !task.files.length) return []
-  const declared = task.files.map(f => fileKey(repo, f, caseFold))
-  return [...new Set((result?.implemented?.filesChanged ?? []).map(f => fileKey(repo, f, caseFold)))].filter(k => !declared.some(d => covers(d, k)))
+  const declared = task.files.map(f => fileKey(repo, f))
+  const changed = new Map((result?.implemented?.filesChanged ?? []).map(f => [fileKey(repo, f), displayPath(repo, f)]))
+  return [...changed].filter(([k]) => !declared.some(d => covers(d, k))).map(([, shown]) => shown)
 }
 // </build-helpers>
-// typeof-guard: no Node globals in the harness (C8) — same probe as swarm-review.js
-const CASE_FOLD = typeof process === 'object' && !!process && (process.platform === 'win32' || process.platform === 'darwin')
 
 // inParallel: the task shares its stage (and the working tree) with other running tasks
 async function runTask(t, inParallel = false) {
-  const scope = inParallel ? `\nDeclared files (this task runs IN PARALLEL with other tasks on the same working tree — change nothing outside these; an entry ending in / covers that directory; if the task cannot be done without another file, leave that file alone and say so in risks): ${JSON.stringify(t.files)}` : ''
+  const scope = inParallel ? `\nDeclared files (this task runs IN PARALLEL with other tasks on the same working tree — change nothing outside these; an entry covers itself and everything under it; if the task cannot be done without another file, leave that file alone and say so in risks): ${JSON.stringify(t.files)}` : ''
   const brief = `Repo: ${A.repo}\nPlan: ${A.planPath ?? 'brief only'}\nTask ${t.id}: ${t.title}\n${t.brief}${scope}\nFollow your standing instructions (mandatory skills, repo CLAUDE.md, TDD: failing test first).${QUIET}`
   let impl = await agent(brief, { label: `impl:${t.id}`, phase: 'Implement', schema: IMPL, agentType: t.agentType, effort: t.effort, ...TOP })
   if (!impl) { log(`task ${t.id}: implementer null — one retry`); impl = await agent(brief, { label: `impl-retry:${t.id}`, phase: 'Implement', schema: IMPL, agentType: t.agentType, effort: t.effort, ...TOP }) }
@@ -227,7 +242,7 @@ async function runTask(t, inParallel = false) {
 }
 
 const stageList = groupStages(A.tasks).flatMap(st => {
-  const { stages, reason } = guardStage(st, A.repo, CASE_FOLD)
+  const { stages, reason } = guardStage(st, A.repo)
   if (reason) log(`stage ${st.key}: running sequentially — ${reason}`)
   return stages
 })
@@ -245,8 +260,8 @@ for (const st of stageList) {
     rs = (await parallel(st.tasks.map(t => () => runTask(t, true)))).map((r, i) => r ?? { task: st.tasks[i].id, title: st.tasks[i].title, implemented: null, error: 'task runner failed' })
     // report-only: the tree already holds whatever happened; the director and
     // the retrospect need to know the parallel assumption did not hold
-    const clash = stageOverlap(st.key, rs, A.repo, CASE_FOLD)
-    const stray = st.tasks.map((t, i) => ({ stage: st.key, task: String(t.id), files: undeclaredWrites(t, rs[i], A.repo, CASE_FOLD) })).filter(u => u.files.length)
+    const clash = stageOverlap(st.key, rs, A.repo)
+    const stray = st.tasks.map((t, i) => ({ stage: st.key, task: String(t.id), files: undeclaredWrites(t, rs[i], A.repo) })).filter(u => u.files.length)
     if (clash.length) log(`stage ${st.key}: PARALLEL ASSUMPTION VIOLATED — co-staged tasks changed the same file(s): ${clash.map(c => `${c.file} (${c.tasks.join(' + ')})`).join(', ')}`)
     if (stray.length) log(`stage ${st.key}: task(s) changed files outside their declaration: ${stray.map(u => `${u.task}: ${u.files.join(', ')}`).join('; ')}`)
     overlaps.push(...clash)
@@ -278,8 +293,12 @@ if (RETRO_MODE === 'off') {
   const FOCUS = RETRO_MODE === 'light'
     ? 'LIGHT MODE — judge ONLY breaking cross-task architecture problems: architectural misfit with the existing codebase, wrong layer direction, broken seams or contracts between the delivered tasks. Do NOT report DX, naming or package/folder-hygiene nits.'
     : 'Judge ONLY cross-task coherence: architectural fit with the existing codebase, layer direction, package/folder hygiene (no class dumps in a package root — dto/, components/, service/ etc. need logical submodules), naming consistency, DX (discoverability, readability).'
+  // a parallel stage whose tasks collided is exactly where cross-task coherence breaks
+  const COLLISIONS = overlaps.length || outside.length
+    ? ` Parallel stages did not stay file-disjoint — inspect these first: ${JSON.stringify({ stageOverlap: overlaps, undeclaredWrites: outside })}.`
+    : ''
   retrospect = await agent(
-    `Retrospective ARCHITECTURE review of repo ${A.repo} after a ${delivered.length}-task build (files touched: ${JSON.stringify(allFiles)}). ${FOCUS} Do NOT re-review correctness — that is done. Do NOT fix anything — report only. coherent=false requires at least one concrete finding.${QUIET}`,
+    `Retrospective ARCHITECTURE review of repo ${A.repo} after a ${delivered.length}-task build (files touched: ${JSON.stringify(allFiles)}).${COLLISIONS} ${FOCUS} Do NOT re-review correctness — that is done. Do NOT fix anything — report only. coherent=false requires at least one concrete finding.${QUIET}`,
     { label: 'retrospect', phase: 'Retrospect', schema: RETRO, agentType: 'codeswarm:swarm-reviewer', effort: 'xhigh', ...TOP }
   )
   if (retrospect) log(`retrospect (${RETRO_MODE}): coherent=${retrospect.coherent}, ${retrospect.findings.length} finding(s)`)

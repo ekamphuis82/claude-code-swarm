@@ -28,7 +28,7 @@ tasks skip the Review stage even under full rigor (tester-only gate).
 | `rigor` | no | `lite` (DEFAULT): implement + one independent test per task, no adversarial review, no retrospect (~1.5–2x raw). `full`: adds the adversarial review + retrospect (~3–4x). `--thorough`/`--rigor=full` sets full |
 | `retrospect` | no | `full` (default) / `light` / `off` — only applies under `rigor: 'full'` |
 | per-task `stage` | no | consecutive tasks sharing a stage run in parallel — only for provably file-disjoint tasks |
-| per-task `files` | for parallelism | paths the task may touch; an entry ending in `/` covers that directory (stated in the brief of a task that runs in parallel). A co-staged task without `files`, or co-staged tasks with overlapping `files`, runs sequentially (logged) — no declaration, no parallelism. Shared API dependencies between tasks are not mechanically checkable and stay a director judgment |
+| per-task `files` | for parallelism | paths the task may touch; an entry covers itself and everything under it, with or without a trailing `/` (stated in the brief of a task that runs in parallel). A co-staged task without `files`, or co-staged tasks with overlapping `files`, runs sequentially (logged) — no declaration, no parallelism. Shared API dependencies between tasks are not mechanically checkable and stay a director judgment |
 | per-task `effort` | no | `low` mechanical (also skips the adversarial review — tester-only gate, since there is nothing to review in a rename or a schema-field add) / omit to inherit / `high` hard |
 
 Output: per-task verdicts (test output quoted verbatim, reviewer verdict,
@@ -50,8 +50,10 @@ report. Every verify lens returns one of three verdicts — `confirmed`,
 observed, or the file:line that rules the claim out) or `inconclusive` —
 with its evidence. A finding is confirmed when every lens confirms, refuted
 when every lens refutes, and inconclusive otherwise: "cannot confirm" is
-never folded into "refuted", and one lens alone can neither keep nor kill a
-finding another lens could not settle.
+never folded into "refuted", and with two lenses one lens alone can neither
+keep nor kill a finding another lens could not settle (under lite one lens
+decides; under `execRepro` only executed lenses decide; when a lens fails after
+retry the survivor decides, flagged `lensFailures`).
 
 | Arg | Required | Notes |
 |---|---|---|
@@ -63,7 +65,7 @@ finding another lens could not settle.
 | `thorough` | no | full rigor + coverage-guided extra find rounds until dry (capped), and implies `verify: 'strict'` |
 | `verify` | no | `'normal'` (default: 2-lens unanimous on critical/major, 1-lens on minors) or `'strict'` (full lens set for every severity, minors included; the `--verify=strict` flag sets this) |
 | `sinceRef` | no | diff-scoped: only code changed since this git ref |
-| `finderReadOnly` | no | `true` = finders judge by reading only — no repo code, no snippets, no test runner. For code you have not read (prompt-level, not a sandbox). As an eval instrument it did not make the verify delta measurable: reading-only Opus 5.5 finders flagged no lure in `eval3`/`eval4` either (2026-09-23) |
+| `finderReadOnly` | no | `true` = finders judge by reading only — no repo code, no snippets, no test runner — and the verify lenses lose their snippet allowance too (`execRepro`, if also set, still wins for bugs lenses). For code you have not read (prompt-level, not a sandbox). As an eval instrument it did not make the verify delta measurable: reading-only Opus 5.5 finders flagged no lure in `eval3`/`eval4` either (2026-09-23) |
 | `execRepro` | no | `true` = lenses on `bugs` findings must RUN the finding's repro (one-liner or OS-temp scratch file, never inside the repo); a confirmed/refuted verdict without an executed repro (one that left output) counts as inconclusive, and executed lenses outrank read-only ones — so it also switches OFF read-only confirmations and kills for bugs findings: use it only where repros can run. Default off: verify lenses are told not to execute repo code (finders are not restricted). It runs repo code — trusted repos only, see [security.md](security.md#repro-execution-opt-in) |
 | `waivers` | no | accepted findings to skip (see [configuration.md](configuration.md)) |
 | `topModel` | no | caps finder tier |
@@ -76,8 +78,10 @@ and waiver `match` strings under 8 chars are skipped), `rejected` (refuted),
 unresolved, not rejected; an inconclusive critical blocks merge) plus
 `inconclusiveMinors` (a count; inconclusive minors are dropped), every one
 carrying its per-lens `lenses` evidence, `verifyFailed` list (all verify
-lenses failed after retry — an infrastructure failure, unresolved, not
-rejected), waived list, runtime checks it could not perform. Cost: 1 fused finder + 1 per specialist
+lenses failed after retry, with `lensFailures` — or the finding's verify run
+aborted, e.g. its severity check hit the budget ceiling after the lenses ran,
+with a `note` and possibly confirming lenses; either way an infrastructure
+failure, unresolved, not rejected), waived list, runtime checks it could not perform. Cost: 1 fused finder + 1 per specialist
 dimension, then 1–6 verify agents per finding (the upper end only on lens
 retries or a contested critical downgrade — a severity downgrade FROM
 critical requires a second independent agreeing severity check, so one
@@ -161,7 +165,9 @@ Plugin self-test against a planted-bug fixture. Phases: Find → Verify.
 | `expected` | no | `[{file, mustMatch?}]` — graded mode. The director reads the fixture's `expected.json` (workflow scripts have no filesystem access) and passes it through. Pass = every entry matched by a confirmed finding (`file` is a path substring, `mustMatch` a case-insensitive regex on the problem text); confirmed findings outside the expected files return under `unexpected` (false positives). |
 
 Output: pass/fail, `confirmed`, `inconclusive` (same three-state verdict as
-swarm-review.js), and in graded mode `missed` + `unexpected`
+swarm-review.js), and in graded mode `missed` + `unexpected` +
+`missedInconclusive` + `unexpectedInconclusive` (findings verify left
+unresolved, a null verify included)
 plus `baseline` — the RAW pre-verify finder output graded against the same
 expected set, at zero extra agents. The delta between `baseline` and the
 verified numbers is the measured value of the verify layer:

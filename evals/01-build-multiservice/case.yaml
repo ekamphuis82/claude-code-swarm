@@ -53,15 +53,15 @@
       "weight": 2
     },
     {
-      "name": "fit-and-cost-line",
+      "name": "fit-judgment",
       "type": "llm",
-      "criteria": "PASS only if the response states a judgment on whether a multi-agent approach fits this task AND what it would roughly cost (an agent count, a multiplier, or a token range relative to doing it in one session). A generic \"this is a big task\" without a cost judgment is a FAIL.",
+      "criteria": "PASS only if the response states a judgment on whether a multi-agent approach fits this task, with a reason (for example the number of services, the money or migration risk, or the verification value). A cost figure is NOT required here, because the fit and cost gate applies at dispatch, which comes after the design questions. FAIL if no fit judgment is made at all, or if it claims to have dispatched without stating fit and cost.",
       "weight": 1
     },
     {
       "name": "risk-and-split",
       "type": "llm",
-      "criteria": "PASS only if the response (a) treats the money/refund logic and the database migration as elevated-risk parts that need independent verification, and (b) splits the work per service/stack with a named owner or specialist per part and an order or staging between them. FAIL if either is missing.",
+      "criteria": "PASS only if the response treats the money/refund logic and the database migration as elevated-risk parts that need independent verification, AND either splits the work per service/stack with a named owner or specialist per part, or explicitly defers that split to a plan it will produce after the open design questions are answered. FAIL if the elevated risk of the money or migration parts is not named, or if the response neither splits the work nor explicitly defers the split.",
       "weight": 1
     }
   ]

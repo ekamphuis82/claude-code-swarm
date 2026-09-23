@@ -157,6 +157,15 @@ const matchesWaiver = f => waivers.some(w =>
   (f.problem ?? '').toLowerCase().includes(String(w.match).toLowerCase()))
 // </waiver-matcher>
 
+// finderReadOnly (opt-in): finders judge by reading only. Two uses: a review of
+// code you have not read (prompt-level, not a sandbox — docs/security.md), and
+// the eval instrument — finders that run their own claims emit no false
+// positives, which leaves the verify layer nothing to measure.
+const FINDER_RO = A.finderReadOnly === true
+if (A.finderReadOnly != null && typeof A.finderReadOnly !== 'boolean') log(`finderReadOnly "${A.finderReadOnly}" is not a boolean — finders may run code`)
+if (FINDER_RO) log('finderReadOnly on — finders judge by reading only')
+const FINDER_RO_RULES = FINDER_RO ? ' READ-ONLY RUN: do not execute anything — no repo code, no self-contained snippet, no test runner, no build. Judge by reading the code only.' : ''
+
 phase('Find')
 // thorough = coverage-guided rounds: next round sweeps the REMAINDER + other
 // failure classes; stops when a round finds nothing new.
@@ -171,7 +180,7 @@ for (let round = 1; round <= maxRounds; round++) {
   const prior = round === 1 ? '' : `\nThe fenced data below lists KNOWN findings (do NOT re-report them) and AREAS ALREADY SWEPT (do NOT re-sweep them unless a known finding points there). This round: sweep the REMAINING areas and hunt DIFFERENT failure classes than the previous round.${FENCE('known findings + swept areas', JSON.stringify({ knownFindings: unique.map(f => `${f.file}:${f.line}`), areasSwept: [...covered] }))}`
   const runFinder = job =>
     agent(
-      `Review ${target} in the repo at ${A.repo} strictly for these dimensions: ${job.dims.join(', ')}. Tag EVERY finding with its dimension.${job.dims.map(d => DIMENSION_HINTS[d]).filter(Boolean).map(h => ' ' + h).join('')} Follow your standing instructions (load your mandatory skills first, read the repo CLAUDE.md). Report ONLY findings for these dimensions with exact file:line, and list the areas you actually swept in areasCovered.${A.thorough ? ' Be exhaustive within your assigned areas.' : ''}${SCOPE}${prior}${QUIET}`,
+      `Review ${target} in the repo at ${A.repo} strictly for these dimensions: ${job.dims.join(', ')}. Tag EVERY finding with its dimension.${job.dims.map(d => DIMENSION_HINTS[d]).filter(Boolean).map(h => ' ' + h).join('')} Follow your standing instructions (load your mandatory skills first, read the repo CLAUDE.md). Report ONLY findings for these dimensions with exact file:line, and list the areas you actually swept in areasCovered.${A.thorough ? ' Be exhaustive within your assigned areas.' : ''}${FINDER_RO_RULES}${SCOPE}${prior}${QUIET}`,
       { label: `find:${job.key}:r${round}`, phase: 'Find', schema: FINDINGS, agentType: job.agentType, ...TOP }
     ).then(r => r && { findings: (r.findings ?? []).map(f => ({ ...f, dimension: job.dims.includes(f.dimension) ? f.dimension : job.dims[0], _runtime: r.runtimeChecksNeeded ?? [] })), areas: r.areasCovered ?? [] })
   let findResults = await parallel(finderJobs.map(job => () => runFinder(job)))

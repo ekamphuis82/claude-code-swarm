@@ -12,6 +12,23 @@ previous bump, plus the bump itself — and the `v<version>` tag sits on that
 bump commit. Tags for 1.0.0 through 1.3.0 were created retroactively on
 2026-08-17, when this changelog was written.
 
+## [1.6.0] — 2026-09-23
+
+### Added
+
+- **`finderReadOnly` (`--finder-read-only`) for `swarm-review.js`.** Opt-in:
+  finders judge by reading only — no repo code, no self-contained snippets,
+  no test runner. Two uses. For code you have not read, it keeps every
+  agent in the review from being told it may run code (prompt-level, not a
+  sandbox). On eval fixtures it restores the verify measurement: on
+  2026-09-23 twelve graded runs showed that finders which run their own
+  claims emit no false positives, so the verify delta stayed at zero.
+- `tools/record-eval.js` accepts `execRepro` and `finderReadOnly` as
+  booleans and splits `byMode` totals by them (`/exec`, `/ro`).
+- `fixtures/eval4`: two disjoint planted bugs and harder lures (correct
+  twins of other fixtures' real bugs, outdated folk wisdom), each checked
+  with `node`.
+
 ## [1.5.0] — 2026-09-23
 
 ### Changed

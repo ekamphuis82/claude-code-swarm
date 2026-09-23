@@ -63,6 +63,7 @@ finding another lens could not settle.
 | `thorough` | no | full rigor + coverage-guided extra find rounds until dry (capped), and implies `verify: 'strict'` |
 | `verify` | no | `'normal'` (default: 2-lens unanimous on critical/major, 1-lens on minors) or `'strict'` (full lens set for every severity, minors included; the `--verify=strict` flag sets this) |
 | `sinceRef` | no | diff-scoped: only code changed since this git ref |
+| `finderReadOnly` | no | `true` = finders judge by reading only — no repo code, no snippets, no test runner. For code you have not read (prompt-level, not a sandbox), and on eval fixtures: finders that run their own claims emit no false positives, so without it the verify delta cannot be measured |
 | `execRepro` | no | `true` = lenses on `bugs` findings must RUN the finding's repro (one-liner or OS-temp scratch file, never inside the repo); a confirmed/refuted verdict without an executed repro (one that left output) counts as inconclusive, and executed lenses outrank read-only ones — so it also switches OFF read-only confirmations and kills for bugs findings: use it only where repros can run. Default off: verify lenses are told not to execute repo code (finders are not restricted). It runs repo code — trusted repos only, see [security.md](security.md#repro-execution-opt-in) |
 | `waivers` | no | accepted findings to skip (see [configuration.md](configuration.md)) |
 | `topModel` | no | caps finder tier |

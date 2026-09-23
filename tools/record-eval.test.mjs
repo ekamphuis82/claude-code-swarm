@@ -141,7 +141,7 @@ test('absent optional fields are not written as nulls', () => {
 
 test('invalid or unknown optional fields fail loud and write nothing', () => {
   const dir = freshDir()
-  for (const bad of [{ workflow: 'review', rigor: 'max' }, { workflow: 'review', verify: 'paranoid' }, { workflow: 'build' }, { workflow: 'smoke', missedInconclusive: '2' }, { workflow: 'review', finderModel: 5 }, { rigour: 'full' }, { notes: 'x'.repeat(301) }, { rigor: 'lite' }, { inconclusive: 1 }]) {
+  for (const bad of [{ workflow: 'review', rigor: 'max' }, { workflow: 'review', verify: 'paranoid' }, { workflow: 'build' }, { workflow: 'smoke', missedInconclusive: '2' }, { workflow: 'review', finderModel: 5 }, { workflow: 'review', execRepro: 'yes' }, { finderReadOnly: true }, { rigour: 'full' }, { notes: 'x'.repeat(301) }, { rigor: 'lite' }, { inconclusive: 1 }]) {
     const r = run(dir, [graded(bad)])
     assert.notEqual(r.status, 0, `${JSON.stringify(bad)} must be rejected`)
   }
@@ -191,4 +191,14 @@ test('a passing REVIEW-tier graded run never moves lastSmokeVersion (the canary 
   assert.equal(JSON.parse(readFileSync(join(dir, 'codeswarm.json'), 'utf8')).lastSmokeVersion, '1.0.0')
   const smoke = JSON.parse(run(dir, [graded({ workflow: 'smoke', claudeCode: '9.9.9' })]).stdout)
   assert.equal(smoke.lastSmokeVersion, 'updated', 'a passing graded smoke still records it')
+})
+
+test('execRepro and finderReadOnly are stored and split the totals into their own modes', () => {
+  const dir = freshDir()
+  run(dir, [graded({ workflow: 'review', rigor: 'lite', finderReadOnly: true, baselineUnexpected: 2, unexpected: 0 })])
+  run(dir, [graded({ workflow: 'review', rigor: 'lite', execRepro: true })])
+  const out = JSON.parse(run(dir, [graded({ workflow: 'review', rigor: 'lite' })]).stdout)
+  assert.deepEqual(Object.keys(out.byMode).sort(), ['review/lite', 'review/lite/exec', 'review/lite/ro'])
+  assert.equal(out.byMode['review/lite/ro'].falsePositivesKilled, 2)
+  assert.equal(JSON.parse(logLines(dir)[0]).finderReadOnly, true)
 })

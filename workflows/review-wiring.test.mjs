@@ -247,3 +247,18 @@ test('graded wiring: an inconclusive false positive is reported as unresolved, n
   assert.deepEqual(result.missedInconclusive, [])
   assert.deepEqual(result.inconclusive.map(f => f.file), ['/repo/guards.js'])
 })
+
+test('finderReadOnly wiring: every finder prompt carries the read-only rule; absent by default', async () => {
+  const driver = (prompt, label) => {
+    if (label.startsWith('find:')) return ok({ findings: [fnd('a.js', 1, 'major', 'x')], areasCovered: ['src'] })
+    if (label.startsWith('verify:')) return ok(CONF)
+    if (label.startsWith('severity:')) return ok({ honest: true, adjustedSeverity: 'major', reason: 'r' })
+    throw new Error(`unexpected label: ${label}`)
+  }
+  const ro = await run({ finderReadOnly: true, dimensions: ['bugs', 'security'] }, driver)
+  const roFinders = ro.calls.filter(c => c.label.startsWith('find:'))
+  assert.equal(roFinders.length, 2)
+  assert.ok(roFinders.every(c => c.prompt.includes('READ-ONLY RUN: do not execute anything')), 'every finder is told not to execute')
+  const plain = await run({}, driver)
+  assert.ok(plain.calls.filter(c => c.label.startsWith('find:')).every(c => !c.prompt.includes('READ-ONLY RUN')), 'default finders are not restricted')
+})

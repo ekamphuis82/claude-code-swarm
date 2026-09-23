@@ -68,7 +68,8 @@ pattern-match: each one ran its claims with `node` before reporting them
 ("returned [7, NaN, NaN] when run in node"), which filters false positives
 out before verify ever sees them. With finders that execute, harder lures
 alone do not produce a verify delta; a finder that is barred from running
-code would.
+code would — pass `finderReadOnly: true` (and record `"finderReadOnly":true`)
+to measure the verify layer on this fixture.
 
 Extension rules (same as the earlier fixtures): never describe a planted bug
 in a code comment (a comment stating the CORRECT contract is allowed and is

@@ -16,7 +16,7 @@
 //    "confirmed":5,"raw":5,"outputTokens":13000}
 // Optional run conditions (stored when present, validated loud):
 //   "workflow":"smoke"|"review", "rigor":"lite"|"full", "verify":"normal"|"strict",
-//   "finderModel", "verifyModel", "notes" (strings),
+//   "finderModel", "verifyModel", "notes" (strings), "execRepro", "finderReadOnly" (booleans),
 //   "missedInconclusive", "unexpectedInconclusive" (numbers — planted bugs and
 //   false positives verify left unresolved: neither wrongly rejected nor killed)
 // Any other field is an error — a typo'd condition must never vanish silently;
@@ -52,6 +52,7 @@ const REQUIRED = {
 const OPTIONAL = {
   workflow: ['smoke', 'review'], rigor: ['lite', 'full'], verify: ['normal', 'strict'],
   finderModel: 'string', verifyModel: 'string', notes: 'string',
+  execRepro: 'boolean', finderReadOnly: 'boolean',
   missedInconclusive: 'number', unexpectedInconclusive: 'number',
 }
 // a run-condition note, not a findings dump (security.md: no findings text in the log)
@@ -85,8 +86,9 @@ function recordVersion (version) {
 // per run: falsePositivesKilled = baselineUnexpected - unexpected - unexpectedInconclusive;
 // realBugsWronglyRejected = missed - baselineMissed - missedInconclusive (an
 // unresolved finding is neither: it is summed under unresolved). No clamping.
-// byMode splits the same sums per workflow/rigor; rows logged before those
-// fields existed land under "unlabelled" rather than being guessed.
+// byMode splits the same sums per workflow/rigor (+ /exec, /ro when those
+// regimes ran); rows logged before those fields existed land under
+// "unlabelled" rather than being guessed.
 function totals () {
   let lines = []
   try { lines = fs.readFileSync(logPath, 'utf8').split('\n').filter(Boolean) } catch { /* no log yet */ }
@@ -96,7 +98,7 @@ function totals () {
   for (const line of lines) {
     let r
     try { r = JSON.parse(line) } catch { continue }
-    const mode = r.workflow ? `${r.workflow}${r.rigor ? '/' + r.rigor : ''}` : 'unlabelled'
+    const mode = r.workflow ? `${r.workflow}${r.rigor ? '/' + r.rigor : ''}${r.execRepro ? '/exec' : ''}${r.finderReadOnly ? '/ro' : ''}` : 'unlabelled'
     for (const acc of [t, byMode[mode] ??= blank()]) {
       acc.runs++
       const fpOpen = Number(r.unexpectedInconclusive) || 0

@@ -1,6 +1,6 @@
 ---
 name: swarm-director
-description: MANDATORY entry point whenever the user asks to use the swarm in any phrasing, or for any multi-agent work - triages the task (feature build, greenfield platform, review/audit, refactor/migration, research, drift, onboard, smoke, doctor, setup, resume) and orchestrates specialist agents through the plugin's workflow scripts. The main session is the director; this skill is its manual.
+description: MANDATORY entry point whenever the user asks to use the swarm in any phrasing, or for any multi-agent work, and before any change to auth, session, tenancy or other security surface, a schema or migration, money math or a new dependency, even a one-file edit - triages the task (feature build, greenfield platform, review/audit, refactor/migration, research, drift, onboard, smoke, doctor, setup, resume) and orchestrates specialist agents through the plugin's workflow scripts. The main session is the director; this skill is its manual.
 ---
 
 # Swarm director

@@ -129,3 +129,11 @@ pilot ran in an empty cwd and was void — every case needs its scaffold.
 
 Follow-ups: loosen `risk-and-split` to the design stage; decide whether the auth/security
 carve-out belongs in the swarm-director description so small security edits trigger it.
+
+### After-run: carve-out in the director description (same day, $6.56)
+
+The auth/schema/money/new-dep carve-out moved into the swarm-director `description`.
+Case 03 with-arm 0.56 -> **1.00** (carve-out named 3/3), delta +0.22 -> +0.44.
+Negatives 06/07 stay 1.00 with zero codeswarm skill loads, so no new false fires.
+Mean delta +0.30 -> +0.25 comes from case 05: its without-arm scored 1.00 this time
+(fPf before) — bare-arm variance, the plugin arm is 1.00 in both runs.

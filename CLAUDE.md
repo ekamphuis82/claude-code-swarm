@@ -50,10 +50,12 @@ stay tiny, exit 0, offline, no writes.
   plumbing live with `/codeswarm:swarm smoke` (plus the graded
   `fixtures/eval` run) before trusting the scripts; a passing smoke records
   `lastSmokeVersion` in the config and the SessionStart canary nudges when
-  the running version drifts from it. Last live proof: 2026-07-26 on
-  Claude Code 2.1.220 (`fixtures/eval3` graded 2/2, 0 FP, pass), from a
-  session whose model was Opus 5 — which proves the PLUMBING under that
-  session (script parse, dispatch, schema-forced output, phase/token
+  the running version drifts from it. Last live proof: 2026-09-23 on
+  Claude Code 2.1.280, plugin 1.5.0 (`fixtures/smoke` plumbing pass, plus
+  four graded `fixtures/eval3` review-tier runs, lite, canonical bait
+  target — two on the pre-1.5.0 verify code, two on 1.5.0 — all 2/2 with
+  zero lures flagged), from a session whose model was Opus 5.5 — which
+  proves the PLUMBING under that session (script parse, dispatch, schema-forced output, phase/token
   accounting), not top-tier finding: `swarm-smoke.js` pins BOTH its finder
   and its verifier to haiku, so no smoke run has ever exercised the top
   tier. Prior proof: 2026-07-15 on 2.1.210 (`fixtures/smoke` plumbing pass;

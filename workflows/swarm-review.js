@@ -29,6 +29,15 @@ const a11yLevel = ['off', 'A', 'AA', 'AAA'].includes(A.a11yLevel) ? A.a11yLevel 
 // indistinguishable from the default). Same shape as the rigor warning below.
 if (A.a11yLevel != null && A.a11yLevel !== a11yLevel) log(`a11yLevel "${A.a11yLevel}" is not a valid value (off|A|AA|AAA) — auditing at AA`)
 const wcagLevel = a11yLevel === 'off' ? 'AA' : a11yLevel
+// graded mode (eval fixtures), same contract as swarm-smoke.js: the director
+// reads the fixture's expected.json (scripts have no fs) and passes it through.
+// Without it a review-tier eval run had to be graded by hand.
+const expected = Array.isArray(A.expected) && A.expected.length ? A.expected : null
+if (A.expected !== undefined && !expected) throw new Error('args.expected must be a non-empty array of {file, mustMatch?}')
+for (const e of expected ?? []) {
+  if (typeof e.file !== 'string' || !e.file) throw new Error('every expected entry needs a file (substring of the finding path)')
+  if (e.mustMatch !== undefined) new RegExp(e.mustMatch, 'i') // bad regex fails loud at parse time
+}
 
 // per-phase output-token laps (best-effort: budget.spent() is turn-wide)
 const T0 = budget.spent()
@@ -292,7 +301,26 @@ confirmed.sort((a, b) => (SEV_RANK[a.severity] ?? 3) - (SEV_RANK[b.severity] ?? 
 const runtimeChecksNeeded = [...new Set(ok.flatMap(f => f._runtime ?? []))]
 confirmed.forEach(f => { delete f._runtime; delete f.verifyFailed })
 
+// graded mode only: raw = every deduped finder finding before verify (the free
+// A/B baseline). The block below is a verbatim copy of swarm-smoke.js's —
+// dimension-sync.test.mjs keeps the two identical.
+const raw = unique.map(({ _runtime, ...f }) => f)
+// <eval-verdict> pass grading — extracted verbatim by eval-verdict.test.mjs
+const matchesExpected = (e, c) => c.file.includes(e.file) && (e.mustMatch === undefined || new RegExp(e.mustMatch, 'i').test(c.problem))
+const missed = (expected ?? []).filter(e => !confirmed.some(c => matchesExpected(e, c)))
+const unexpected = expected ? confirmed.filter(c => !expected.some(e => c.file.includes(e.file))) : []
+const pass = expected ? missed.length === 0 : confirmed.length >= 1
+// free A/B baseline: grade the RAW pre-verify finder output against the same set.
+// baselineUnexpected - unexpected = false positives verify killed; missed -
+// baselineMissed = real bugs verify wrongly rejected (README "Is every stage worth it?")
+const baseline = expected ? {
+  missed: expected.filter(e => !raw.some(c => matchesExpected(e, c))),
+  unexpected: raw.filter(c => !expected.some(e => c.file.includes(e.file))),
+} : null
+// </eval-verdict>
+
 return {
+  ...(expected ? { pass, missed, unexpected, baseline, raw } : {}),
   confirmed,
   rejected: ok.filter(f => !f.isConfirmed && !f.verifyFailed).map(f => ({ file: f.file, line: f.line, problem: f.problem, votes: f.votes, lensCount: f.lensCount, ...(f.lensFailures ? { lensFailures: f.lensFailures } : {}) })),
   // every lens null after retry = unresolved (criticals block merge), NOT rejected

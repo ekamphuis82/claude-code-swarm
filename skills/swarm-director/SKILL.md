@@ -285,17 +285,29 @@ totals. You only invoke it:
   (`claude --version`, first token) and run
   `node <pluginDir>/tools/record-eval.js --smoke-pass <version>`.
   Never on a failing run; version not obtainable = skip.
-- After EVERY graded run (`expected` was passed), pass OR fail: run
+- After EVERY graded run (`expected` was passed — `swarm-smoke.js` or
+  `swarm-review.js`), pass OR fail: run
   `node <pluginDir>/tools/record-eval.js '<json>'` (JSON also accepted on
-  stdin) with one object holding exactly:
+  stdin) with one object holding the required fields
   `{"claudeCode":"<version>","fixture":"<fixtureDir>","pass":<bool>,"missed":<n>,"unexpected":<n>,"baselineMissed":<n>,"baselineUnexpected":<n>,"confirmed":<n>,"raw":<n>,"outputTokens":<tokens.total>}`
-  The script stamps the date, appends the line to
-  `codeswarm-eval-log.jsonl` next to the config, updates
-  `lastSmokeVersion` only on pass, and prints the running totals (runs so
-  far, summed false positives killed, summed real bugs wrongly rejected) —
+  (counts = array lengths from the result; `baselineMissed`/`baselineUnexpected`
+  from `baseline`) plus the run conditions: `"workflow":"smoke"|"review"`;
+  for review also `"rigor"` and `"verify"` as the run used them,
+  `"finderModel"` (the session model, or `topModel` when passed),
+  `"verifyModel":"sonnet"`;
+  `"notes"` (≤300 chars) for anything else that shaped the run, e.g. a
+  non-default `target` — never findings text. Any other field is rejected.
+  The script stamps date, host and plugin version, normalizes the fixture
+  path, appends the line to `codeswarm-eval-log.jsonl` next to the config,
+  updates `lastSmokeVersion` only on a passing SMOKE row (never on a
+  review-tier run), and prints the running totals (runs, summed false
+  positives killed, summed real bugs wrongly rejected — overall and per
+  workflow/rigor under `byMode`) —
   QUOTE those totals in your report. One run is an anecdote; the
   accumulated verified-vs-baseline delta across the log IS the A/B
-  evidence for the verify layer.
+  evidence for the verify layer. The log is per config dir, so per
+  machine: a run recorded on another machine is absent here — say whose
+  log the totals come from.
 
 ## Estimate & pre-launch tuning
 
@@ -430,7 +442,7 @@ still pass real JSON objects.
 | Script | Required args | Optional args |
 |---|---|---|
 | `swarm-build.js` | `repo`, `tasks [{id,title,agentType,brief}]` (`agentType` plugin-qualified — see FEATURE step 1) | `planPath`, `quiet`, `topModel`, `rigor` (pass only when `full` — see Cost model), `retrospect` (full/light/off; applies under full rigor only), per-task `stage` (consecutive tasks sharing a stage run in parallel — only for provably file-disjoint tasks; unset = sequential), per-task `effort` (`low` for mechanical tasks — ALSO skips that task's adversarial review, tester-only; omit to inherit the session effort; `high` for genuinely hard ones) |
-| `swarm-review.js` | `repo` | `target`, `dimensions` (bugs, security, wcag, performance, conventions, architecture, test-coverage — the last is opt-in, never in the default set; its finder is the tester agent), `a11yLevel` (off/A/AA/AAA, default AA; off drops wcag from the default set), `rigor` (see Cost model), `verify` (normal/strict — full rigor only), `thorough`, `quiet`, `topModel`, `sinceRef`, `waivers` |
+| `swarm-review.js` | `repo` | `target`, `dimensions` (bugs, security, wcag, performance, conventions, architecture, test-coverage — the last is opt-in, never in the default set; its finder is the tester agent), `a11yLevel` (off/A/AA/AAA, default AA; off drops wcag from the default set), `rigor` (see Cost model), `verify` (normal/strict — full rigor only), `thorough`, `quiet`, `topModel`, `sinceRef`, `waivers`, `expected [{file, mustMatch?}]` (graded mode on an eval fixture — same contract and result keys as `swarm-smoke.js`: `pass`, `missed`, `unexpected`, `baseline`, `raw`; log it via `tools/record-eval.js` like any graded run) |
 | `swarm-refactor.js` | `repo`, `instruction` | `scope`, `quiet` |
 | `swarm-research.js` | `question` | `repo`, `angles[]`, `quiet`, `topModel` |
 | `swarm-onboard.js` | `pluginDir` (absolute path to the plugin clone — generation target); propose mode also needs `repos [{name,path}]` (scan — strongly recommended) OR `stacks [{name,version?,notes?}]` (stack-default fallback, ONBOARD step 0b; never both); generate mode also needs `proposal` (the user-approved proposal object, `origin` included) | `mode` (`propose` default; `generate`), `quiet`, `topModel`, `existingAgents [{name,description}]` (propose — the session's non-codeswarm custom agents, ONBOARD step 0c; the proposal marks role overlap), `adHocSpecialists` (generate — pass `true` when the config carries it; softens the routing hint in generated descriptions) |

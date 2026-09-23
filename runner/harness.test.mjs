@@ -157,6 +157,7 @@ const RUNS = [
   ['swarm-smoke.js', { fixtureDir: '/fx', expected: [{ file: 'x' }] }],
   ['swarm-review.js', { repo: '/repo' }],
   ['swarm-review.js', { repo: '/repo', rigor: 'full' }],
+  ['swarm-review.js', { repo: '/repo', expected: [{ file: 'x' }] }],
   ['swarm-build.js', { repo: '/repo', tasks: [{ id: 'T1', title: 't', brief: 'b', agentType: 'codeswarm:x' }] }],
   ['swarm-research.js', { question: 'q' }],
   ['swarm-refactor.js', { repo: '/repo', instruction: 'rename x to y' }],

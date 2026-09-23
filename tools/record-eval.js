@@ -14,9 +14,18 @@
 //   {"claudeCode":"2.1.201","fixture":"<dir>","pass":true,"missed":0,
 //    "unexpected":0,"baselineMissed":0,"baselineUnexpected":0,
 //    "confirmed":5,"raw":5,"outputTokens":13000}
+// Optional run conditions (stored when present, validated loud):
+//   "workflow":"smoke"|"review", "rigor":"lite"|"full", "verify":"normal"|"strict",
+//   "finderModel", "verifyModel", "notes" (strings)
+// Any other field is an error — a typo'd condition must never vanish silently;
+// every condition but notes requires workflow (else the row bins as unlabelled).
+// lastSmokeVersion moves only on a passing SMOKE row (workflow absent or smoke):
+// the canary is defined on the smoke, not on whatever graded run passed last.
+// Stamped by the script itself: date, host, pluginVersion.
 //
 // Prints ONE JSON summary line with the running totals (the accumulated A/B
-// evidence). Invalid input exits non-zero — dev tool, loud beats silent.
+// evidence), overall and per workflow/rigor. Invalid input exits non-zero —
+// dev tool, loud beats silent.
 'use strict'
 const fs = require('fs')
 const path = require('path')
@@ -26,9 +35,38 @@ const os = require('os')
 const configDir = process.env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude')
 const configPath = path.join(configDir, 'codeswarm.json')
 const logPath = path.join(configDir, 'codeswarm-eval-log.jsonl')
+const manifestPath = path.join(__dirname, '..', '.claude-plugin', 'plugin.json')
 
 const fail = msg => { console.error(`record-eval: ${msg}`); process.exit(1) }
 const pick = (o, ks) => Object.fromEntries(ks.map(k => [k, o[k]]))
+
+const REQUIRED = {
+  claudeCode: 'string', fixture: 'string', pass: 'boolean',
+  missed: 'number', unexpected: 'number', baselineMissed: 'number',
+  baselineUnexpected: 'number', confirmed: 'number', raw: 'number', outputTokens: 'number',
+}
+// array = enum, string = typeof. Without these, rows run at lite and full rigor
+// (or through smoke and review) were indistinguishable in the log.
+const OPTIONAL = {
+  workflow: ['smoke', 'review'], rigor: ['lite', 'full'], verify: ['normal', 'strict'],
+  finderModel: 'string', verifyModel: 'string', notes: 'string',
+}
+// a run-condition note, not a findings dump (security.md: no findings text in the log)
+const NOTES_MAX = 300
+
+// one fixture, one key: the log once held both `fixtures/eval` and an absolute
+// `C:/…/fixtures/eval` for the same fixture
+const normFixture = f => {
+  const s = f.replace(/\\/g, '/').replace(/\/+$/, '')
+  const m = s.match(/(?:^|\/)(fixtures\/[^/]+)$/)
+  return m ? m[1] : s
+}
+
+// which install produced the row — the log is per config dir, so evidence
+// recorded on another machine is simply absent here, and the log must say whose it is
+function pluginVersion () {
+  try { return JSON.parse(fs.readFileSync(manifestPath, 'utf8')).version } catch { return undefined }
+}
 
 // PRESERVES every other key; config absent/unreadable = skip (bookkeeping never invents a config)
 function recordVersion (version) {
@@ -43,18 +81,25 @@ function recordVersion (version) {
 
 // per run: falsePositivesKilled = baselineUnexpected - unexpected;
 // realBugsWronglyRejected = missed - baselineMissed. No clamping — honest either way.
+// byMode splits the same sums per workflow/rigor; rows logged before those
+// fields existed land under "unlabelled" rather than being guessed.
 function totals () {
   let lines = []
   try { lines = fs.readFileSync(logPath, 'utf8').split('\n').filter(Boolean) } catch { /* no log yet */ }
-  const t = { runs: 0, falsePositivesKilled: 0, realBugsWronglyRejected: 0 }
+  const blank = () => ({ runs: 0, falsePositivesKilled: 0, realBugsWronglyRejected: 0 })
+  const t = blank()
+  const byMode = {}
   for (const line of lines) {
     let r
     try { r = JSON.parse(line) } catch { continue }
-    t.runs++
-    t.falsePositivesKilled += (Number(r.baselineUnexpected) || 0) - (Number(r.unexpected) || 0)
-    t.realBugsWronglyRejected += (Number(r.missed) || 0) - (Number(r.baselineMissed) || 0)
+    const mode = r.workflow ? `${r.workflow}${r.rigor ? '/' + r.rigor : ''}` : 'unlabelled'
+    for (const acc of [t, byMode[mode] ??= blank()]) {
+      acc.runs++
+      acc.falsePositivesKilled += (Number(r.baselineUnexpected) || 0) - (Number(r.unexpected) || 0)
+      acc.realBugsWronglyRejected += (Number(r.missed) || 0) - (Number(r.baselineMissed) || 0)
+    }
   }
-  return t
+  return { ...t, byMode }
 }
 
 async function main () {
@@ -68,19 +113,36 @@ async function main () {
   if (!raw) { raw = ''; for await (const chunk of process.stdin) raw += chunk }
   let r
   try { r = JSON.parse(raw) } catch { fail('expected the graded-run JSON as an argument or on stdin') }
-  const REQUIRED = {
-    claudeCode: 'string', fixture: 'string', pass: 'boolean',
-    missed: 'number', unexpected: 'number', baselineMissed: 'number',
-    baselineUnexpected: 'number', confirmed: 'number', raw: 'number', outputTokens: 'number',
-  }
+  if (typeof r !== 'object' || r === null || Array.isArray(r)) fail('expected a JSON object')
   for (const [k, t] of Object.entries(REQUIRED)) {
     if (typeof r[k] !== t) fail(`field "${k}" must be a ${t} (got ${JSON.stringify(r[k])})`)
   }
-  // the script stamps the date itself — one less field a model can get wrong
-  const line = { date: new Date().toISOString().slice(0, 10), ...pick(r, Object.keys(REQUIRED)) }
+  const optional = Object.keys(OPTIONAL).filter(k => r[k] !== undefined)
+  for (const k of optional) {
+    const t = OPTIONAL[k]
+    if (Array.isArray(t) ? !t.includes(r[k]) : typeof r[k] !== t) {
+      fail(`optional field "${k}" must be ${Array.isArray(t) ? t.join('|') : `a ${t}`} (got ${JSON.stringify(r[k])})`)
+    }
+  }
+  if (typeof r.notes === 'string' && r.notes.length > NOTES_MAX) fail(`field "notes" is a run-condition note, max ${NOTES_MAX} chars (got ${r.notes.length}) — never findings text`)
+  const unlabelled = optional.filter(k => k !== 'workflow' && k !== 'notes')
+  if (unlabelled.length && r.workflow === undefined) fail(`field(s) ${unlabelled.join(', ')} need "workflow" (smoke|review) — without it the row cannot be binned`)
+  const unknown = Object.keys(r).filter(k => !(k in REQUIRED) && !(k in OPTIONAL))
+  if (unknown.length) fail(`unknown field(s) ${unknown.map(k => `"${k}"`).join(', ')} — valid optional fields: ${Object.keys(OPTIONAL).join(', ')}`)
+  // the script stamps date/host/version itself — fewer fields a model can get wrong
+  const version = pluginVersion()
+  const line = {
+    date: new Date().toISOString().slice(0, 10),
+    host: os.hostname(),
+    ...(version ? { pluginVersion: version } : {}),
+    ...pick(r, Object.keys(REQUIRED)),
+    fixture: normFixture(r.fixture),
+    ...pick(r, optional),
+  }
   fs.mkdirSync(configDir, { recursive: true })
   fs.appendFileSync(logPath, JSON.stringify(line) + '\n')
-  const lastSmokeVersion = r.pass ? recordVersion(r.claudeCode) : 'skipped (failing run)'
+  const isSmoke = r.workflow === undefined || r.workflow === 'smoke'
+  const lastSmokeVersion = !r.pass ? 'skipped (failing run)' : !isSmoke ? 'skipped (not a smoke run)' : recordVersion(r.claudeCode)
   console.log(JSON.stringify({ logged: true, lastSmokeVersion, ...totals() }))
 }
 

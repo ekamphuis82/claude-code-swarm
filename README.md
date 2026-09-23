@@ -430,12 +430,14 @@ Where the evidence for the claims in this README actually stands:
   precision-weighted trap file — correct code shaped like notorious bugs,
   built specifically to draw a false positive the verify layer can kill).
   Every graded run also grades the RAW pre-verify finder output as a baseline
-  and records both in `codeswarm-eval-log.jsonl` next to the config; the
-  accumulated verified-vs-baseline delta across that log is the A/B evidence
-  for the verify layer.
+  and records both in `codeswarm-eval-log.jsonl` next to the config (one log
+  per config dir, so per machine — logs are never merged); the accumulated
+  verified-vs-baseline delta across that log is the A/B evidence for the
+  verify layer.
 - **Measured once, not yet a trend:** the verify layer *can* kill real false
   positives. On 2026-08-17 a graded `fixtures/eval3` run produced the first
-  non-zero delta in the live log: **3 false positives killed, 0 real bugs
+  non-zero delta in the live log (the maintainer's, where it sits under the
+  fixture label `fixtures/eval3-bait-review`): **3 false positives killed, 0 real bugs
   wrongly rejected**, with both planted bugs surviving verify. The three
   rejections were exactly `guards.js`'s engineered lures (the `<=` off-by-one
   shape, the idiomatic `== null`, the correct `Math.floor` paging) — verified

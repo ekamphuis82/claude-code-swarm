@@ -25,6 +25,9 @@
 // 4. Token-lap block (per-phase output-token accounting) — five exact code
 // lines every workflow script must carry unmodified.
 //
+// 5. Eval-verdict grading block. Canonical: swarm-smoke.js <eval-verdict>;
+// swarm-review.js graded mode carries a byte-identical copy.
+//
 // Deliberately NOT synced: the retry-once dispatch sites — labels, log
 // lines and null-handling differ per call site by design; the flow itself
 // is exercised by harness-contract.test.mjs.
@@ -129,3 +132,14 @@ for (const f of LAP_SCRIPTS) {
     }
   })
 }
+
+// --- eval-verdict grading block ----------------------------------------------
+// swarm-review.js grades eval fixtures with the SAME code as swarm-smoke.js, so
+// smoke-tier and review-tier rows in the eval log mean the same thing. The
+// block is byte-identical; eval-verdict.test.mjs exercises the smoke copy.
+const evalBlock = s => s.match(/\/\/ <eval-verdict>[^\n]*\n([\s\S]*?)\/\/ <\/eval-verdict>/)?.[1]
+test('swarm-review.js carries the eval-verdict block byte-identical to swarm-smoke.js', () => {
+  const canon = evalBlock(read('swarm-smoke.js'))
+  assert.ok(canon, '<eval-verdict> markers missing from swarm-smoke.js')
+  assert.equal(evalBlock(read('swarm-review.js')), canon, 'swarm-review.js eval-verdict block drifted from swarm-smoke.js')
+})

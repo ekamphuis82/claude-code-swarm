@@ -2,16 +2,20 @@
 // process against a temp CLAUDE_CONFIG_DIR and asserts the log append, the
 // key-preserving lastSmokeVersion write and the running totals.
 // Run: node --test tools/record-eval.test.mjs
-import { test } from 'node:test'
+import { test, after } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync, existsSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync, existsSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const script = join(dirname(fileURLToPath(import.meta.url)), 'record-eval.js')
-const freshDir = () => mkdtempSync(join(tmpdir(), 'codeswarm-record-eval-'))
+// every sandbox is removed afterwards: leftover codeswarm-record-eval-* dirs once
+// read as stray eval logs during an evidence hunt
+const dirs = []
+const freshDir = () => { const d = mkdtempSync(join(tmpdir(), 'codeswarm-record-eval-')); dirs.push(d); return d }
+after(() => { for (const d of dirs) rmSync(d, { recursive: true, force: true }) })
 const run = (dir, args = [], input) =>
   spawnSync(process.execPath, [script, ...args], {
     env: { ...process.env, CLAUDE_CONFIG_DIR: dir },
@@ -103,4 +107,77 @@ test('invalid input fails loud and writes nothing', () => {
   const badVersion = run(dir, ['--smoke-pass', 'nope'])
   assert.notEqual(badVersion.status, 0)
   assert.equal(existsSync(join(dir, 'codeswarm-eval-log.jsonl')), false)
+})
+
+test('optional run conditions are stored; date, host and pluginVersion are stamped', () => {
+  const dir = freshDir()
+  const r = run(dir, [graded({
+    workflow: 'review', rigor: 'full', verify: 'strict', finderModel: 'opus', verifyModel: 'sonnet',
+    notes: 'suspicion-biased target',
+  })])
+  assert.equal(r.status, 0, r.stderr)
+  const line = JSON.parse(logLines(dir)[0])
+  assert.equal(line.workflow, 'review')
+  assert.equal(line.rigor, 'full')
+  assert.equal(line.verify, 'strict')
+  assert.equal(line.finderModel, 'opus')
+  assert.equal(line.verifyModel, 'sonnet')
+  assert.equal(line.notes, 'suspicion-biased target')
+  assert.equal(typeof line.host, 'string')
+  assert.ok(line.host.length)
+  assert.match(line.pluginVersion, /^\d+\.\d+\.\d+/)
+})
+
+test('absent optional fields are not written as nulls', () => {
+  const dir = freshDir()
+  run(dir, [graded()])
+  const line = JSON.parse(logLines(dir)[0])
+  for (const k of ['workflow', 'rigor', 'verify', 'finderModel', 'verifyModel', 'notes']) {
+    assert.equal(k in line, false, `${k} must be absent, not null`)
+  }
+})
+
+test('invalid or unknown optional fields fail loud and write nothing', () => {
+  const dir = freshDir()
+  for (const bad of [{ workflow: 'review', rigor: 'max' }, { workflow: 'review', verify: 'paranoid' }, { workflow: 'build' }, { workflow: 'smoke', finderModel: [] }, { workflow: 'review', finderModel: 5 }, { rigour: 'full' }, { notes: 'x'.repeat(301) }, { rigor: 'lite' }, { inconclusive: 1 }]) {
+    const r = run(dir, [graded(bad)])
+    assert.notEqual(r.status, 0, `${JSON.stringify(bad)} must be rejected`)
+  }
+  assert.equal(existsSync(join(dir, 'codeswarm-eval-log.jsonl')), false)
+})
+
+test('fixture path is normalized to its fixtures/<name> key', () => {
+  const dir = freshDir()
+  run(dir, [graded({ fixture: 'C:\\devProjects\\claude-code-swarm\\fixtures\\eval3\\' })])
+  run(dir, [graded({ fixture: '/home/u/claude-code-swarm/fixtures/eval3' })])
+  run(dir, [graded({ fixture: 'fixtures/eval3' })])
+  assert.deepEqual(logLines(dir).map(l => JSON.parse(l).fixture), ['fixtures/eval3', 'fixtures/eval3', 'fixtures/eval3'])
+})
+
+test('totals split per workflow/rigor; legacy rows land under unlabelled', () => {
+  const dir = freshDir()
+  // a legacy row, as logged before the run-condition fields existed
+  writeFileSync(join(dir, 'codeswarm-eval-log.jsonl'), JSON.stringify({
+    date: '2026-08-17', claudeCode: '2.1.233', fixture: 'fixtures/eval3-bait-review', pass: true,
+    missed: 0, unexpected: 1, baselineMissed: 0, baselineUnexpected: 4, confirmed: 3, raw: 7, outputTokens: 18199,
+  }) + '\n')
+  run(dir, [graded({ workflow: 'review', rigor: 'lite', baselineUnexpected: 2, unexpected: 0 })])
+  const out = JSON.parse(run(dir, [graded({ workflow: 'smoke' })]).stdout)
+  assert.equal(out.runs, 3)
+  assert.equal(out.falsePositivesKilled, 5)
+  assert.deepEqual(Object.keys(out.byMode).sort(), ['review/lite', 'smoke', 'unlabelled'])
+  assert.equal(out.byMode.unlabelled.falsePositivesKilled, 3)
+  assert.equal(out.byMode['review/lite'].falsePositivesKilled, 2)
+  assert.equal(out.byMode.smoke.runs, 1)
+})
+
+
+test('a passing REVIEW-tier graded run never moves lastSmokeVersion (the canary is the smoke\'s)', () => {
+  const dir = freshDir()
+  writeFileSync(join(dir, 'codeswarm.json'), JSON.stringify({ lastSmokeVersion: '1.0.0' }))
+  const out = JSON.parse(run(dir, [graded({ workflow: 'review', claudeCode: '9.9.9' })]).stdout)
+  assert.equal(out.lastSmokeVersion, 'skipped (not a smoke run)')
+  assert.equal(JSON.parse(readFileSync(join(dir, 'codeswarm.json'), 'utf8')).lastSmokeVersion, '1.0.0')
+  const smoke = JSON.parse(run(dir, [graded({ workflow: 'smoke', claudeCode: '9.9.9' })]).stdout)
+  assert.equal(smoke.lastSmokeVersion, 'updated', 'a passing graded smoke still records it')
 })

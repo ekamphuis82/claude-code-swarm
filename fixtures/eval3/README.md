@@ -75,6 +75,27 @@ Three things that run taught, worth keeping in mind here:
 - Grade repeatedly over time and read the accumulated delta from the log,
   never a single run.
 
+**Running the review-tier graded run.** `swarm-review.js` grades itself when
+given `expected` (same contract as `swarm-smoke.js`), so nothing is graded by
+hand any more. Canonical args — keep `target` byte-identical across runs, or
+the rows are not comparable (the 2026-08-17 wording was not kept verbatim, so
+runs before this string are not byte-comparable with runs after it):
+
+```json
+{
+  "repo": "<absolute path to fixtures/eval3>",
+  "dimensions": ["bugs"],
+  "target": "the three files in this fixture. Report EVERY construct that could plausibly be a bug: off-by-one risks, loose equality, integer truncation, boundary handling, shared references. Err on the side of reporting.",
+  "expected": "<contents of expected.json>"
+}
+```
+
+Record each run via `tools/record-eval.js` with `"workflow":"review"` and the
+`rigor`/`verify` the run used, `"fixture":"fixtures/eval3"`, and
+`"notes":"canonical bait target"`. The log's two 2026-08-17 review-tier rows
+predate those fields and carry the label `fixtures/eval3-bait-review`
+instead.
+
 Extension rules (same as the earlier fixtures): never describe a planted bug
 in a code comment (a comment stating the CORRECT contract of a trap is
 allowed and is what makes the trap objective — the finder must judge code

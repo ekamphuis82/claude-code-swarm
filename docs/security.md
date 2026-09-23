@@ -38,7 +38,7 @@ listed under the table. Everything here is local; nothing is uploaded (see
 | Path | Written by | Contents |
 |---|---|---|
 | `<configDir>/codeswarm.json` | `swarm setup` (the Write tool, so your normal permission prompt gates it); `tools/record-eval.js` for the `lastSmokeVersion` key only | your settings — and, for an issue tracker, the *path* to a token file, never a token |
-| `<configDir>/codeswarm-eval-log.jsonl` | `tools/record-eval.js`, one appended line per graded run | fixture name, counts, token totals. No source code, no findings text |
+| `<configDir>/codeswarm-eval-log.jsonl` | `tools/record-eval.js`, one appended line per graded run | fixture name, counts, token totals, run conditions (workflow, rigor, verify mode, model names, plugin version, this machine's hostname, a note capped at 300 chars). No source code, no findings text |
 | `<configDir>/codeswarm-runs/<runId>/` | the standalone runner only | `script.js`, `args.json`, `journal.jsonl`, `result.json` — the journal holds agent output, which is repo-derived text |
 | `<pluginDir>/agents/my-*.md`, `<pluginDir>/skills/my-*/` | onboard generate mode, after your approval | the stack agents and convention skills generated for your repos |
 

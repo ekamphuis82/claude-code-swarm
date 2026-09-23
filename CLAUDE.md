@@ -60,8 +60,13 @@ stay tiny, exit 0, offline, no writes.
   `fixtures/eval2` graded 4/4 0 FP pass; `fixtures/eval` graded 3/5 — the
   two documented haiku misses; `fixtures/eval3` graded 2/2 pass), recorded
   against a different config dir than the one this machine reads.
-  NOTE on the live log:
-  the log's FIRST non-zero verify delta landed 2026-08-17 — a graded `eval3`
+  NOTE on the live log (one log per config dir, so per MACHINE — logs are
+  never merged; the 2026-09-11 external-review check read another machine's
+  log and wrongly concluded this run was never recorded):
+  the log's FIRST non-zero verify delta landed 2026-08-17 in the Windows
+  machine's `~/.claude/codeswarm-eval-log.jsonl`, fixture label
+  `fixtures/eval3-bait-review` (`baselineUnexpected 4 → unexpected 1`,
+  logged before run conditions had fields of their own) — a graded `eval3`
   run via `swarm-review.js` with a deliberately suspicion-biased target killed
   3 false positives (all three `guards.js` lures) and wrongly rejected nothing;
   both planted bugs survived. Every other genuine run is still zero-delta, and
@@ -131,7 +136,8 @@ stay tiny, exit 0, offline, no writes.
   "What's measured vs. designed"): the eval evidence to date holds two
   measured deltas in OPPOSITE directions (one false positive killed, one real
   bug wrongly rejected — from the documented 2026-07-06 batch, NOT retained in
-  the current log, which now holds one null-delta run) — anecdotes, not a
+  the current log) plus the one 2026-08-17 `eval3-bait-review` row in
+  favour of the layer — anecdotes, not a
   trend, and repeating the SAME fixture adds correlated samples, not
   independent evidence (see the 2026-07-06 batch note above). The only real
   fix is more/varied fixtures graded over time

@@ -148,6 +148,18 @@ test('swarm-review.js: default dimensions produce the ranked-report shape', asyn
   assert.ok(r.result.confirmed.length >= 1, 'the fake isReal finding must confirm')
 })
 
+test('swarm-review.js: graded mode (expected) returns the smoke-compatible grading shape', async () => {
+  const r = await run('swarm-review.js', { repo: '/repo', expected: [{ file: 'x' }] })
+  assertInvariants('swarm-review.js', r)
+  assert.equal(r.result.pass, true, 'the fake finding matches the expected entry')
+  assert.equal(r.result.missed.length, 0)
+  assert.ok(Array.isArray(r.result.raw) && r.result.raw.length >= 1, 'raw pre-verify findings returned')
+  assert.ok(r.result.baseline && Array.isArray(r.result.baseline.unexpected))
+  const plain = await run('swarm-review.js', { repo: '/repo' })
+  assert.equal('pass' in plain.result, false, 'no grading keys outside graded mode')
+  await assert.rejects(run('swarm-review.js', { repo: '/repo', expected: [] }), /non-empty array/)
+})
+
 test('swarm-review.js: full rigor dispatches the graded verify and the severity check', async () => {
   const r = await run('swarm-review.js', { repo: '/repo', rigor: 'full' })
   assertInvariants('swarm-review.js', r)

@@ -53,6 +53,7 @@ report.
 | `sinceRef` | no | diff-scoped: only code changed since this git ref |
 | `waivers` | no | accepted findings to skip (see [configuration.md](configuration.md)) |
 | `topModel` | no | caps finder tier |
+| `expected` | no | `[{file, mustMatch?}]` — graded mode on an eval fixture, same contract as `swarm-smoke.js`: the result gains `pass`, `missed`, `unexpected`, `baseline` and `raw` (every deduped finder finding before verify). This is the tier that can measure the verify delta (see swarm-smoke.js below) |
 
 Output: confirmed findings (file:line, severity, evidence; `waivedAttempt:
 true` marks a critical someone tried to waive — criticals are never waivable,
@@ -156,17 +157,23 @@ in director prose): after a PASSING smoke the director runs it with
 `--smoke-pass <version>` to record `lastSmokeVersion` in the config — the
 SessionStart update canary compares against it; after EVERY graded run
 (pass or fail) the director feeds it the graded numbers and it appends one
-JSONL line (date, version, recall/precision plus the baseline numbers) to
+JSONL line (date, host, plugin and Claude Code version, recall/precision
+plus the baseline numbers, and the run conditions — workflow, rigor,
+verify mode, finder/verify model, a short note) to
 `codeswarm-eval-log.jsonl` next to the config and prints the running
-totals: the accumulated verified-vs-baseline delta across that log is the
-A/B evidence for the verify layer — one run alone is an anecdote.
+totals, overall and per workflow/rigor: the accumulated
+verified-vs-baseline delta across that log is the A/B evidence for the
+verify layer — one run alone is an anecdote. The log lives in the config
+dir, so each machine keeps its own; a run recorded elsewhere is not in
+yours.
 
 One practical limit: **this script cannot measure the verify delta**, because
 it pins haiku on both agents and that finder is too
 conservative to flag a trap file at all (4 graded `fixtures/eval3` runs, zero
 `guards.js` findings, delta 0 every time). To measure the delta, run
-`swarm-review.js` on `eval3` with a deliberately suspicion-biased `target`
-instead — that produced 3 killed false positives on the first attempt. Details
+`swarm-review.js` in graded mode (`expected`) on `eval3` with a deliberately
+suspicion-biased `target` instead — that produced 3 killed false positives
+on the first attempt. Details
 in `fixtures/eval3/README.md`.
 
 ## Shared behavior

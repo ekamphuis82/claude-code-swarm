@@ -51,8 +51,9 @@ What the design gives you:
 
 - **Parallel where safe, sequential where it must be** (stage-aware build
   pipeline; only provably file-disjoint tasks run concurrently)
-- **Independently verified findings** (every finding passes an existence
-  check plus a severity gate before it reaches your report)
+- **Independently verified findings** (every confirmed finding passed an
+  existence check plus a severity gate; a finding the checks can neither
+  confirm nor refute is reported as unresolved instead of silently dropped)
 - **Agents that know your stack** (the onboard generator scans your repos and
   writes stack agents + convention skills into your clone)
 - **Cost under control** (quiet mode by default, model + effort tiering,
@@ -194,7 +195,7 @@ The director triages into one of these workflows:
 | Task type | Workflow | Shape |
 |---|---|---|
 | feature build | `workflows/swarm-build.js` | per plan task, sequentially: implementer (TDD) → independent tester (+ project gate) → adversarial reviewer → fix round with re-test → whole-build retrospect |
-| review / audit | `workflows/swarm-review.js` | fused reviewer pass (bugs/performance/architecture in one agent) + specialist finders (security, WCAG) → dedup → unanimous two-lens existence verify plus a severity check (1–4 agents per finding; minors and budget-tight runs get one lens, and downgrading a critical takes two agreeing severity checks) → ranked report; `thorough` = up to 3 coverage-guided finder rounds (stopping early when a round finds nothing new) plus the full verify-lens set for every severity |
+| review / audit | `workflows/swarm-review.js` | fused reviewer pass (bugs/performance/architecture in one agent) + specialist finders (security, WCAG) → dedup → two-lens existence verify with three verdicts (confirmed / refuted with evidence / inconclusive — an uncertain lens leaves a finding unresolved instead of discarding it; `execRepro` makes lenses run the repro) plus a severity check (1–4 agents per finding; minors and budget-tight runs get one lens, and downgrading a critical takes two agreeing severity checks) → ranked report; `thorough` = up to 3 coverage-guided finder rounds (stopping early when a round finds nothing new) plus the full verify-lens set for every severity |
 | refactor / migration | `workflows/swarm-refactor.js` | discover sites → transform in sequential batches → independent verify |
 | research | `workflows/swarm-research.js` | multi-angle sweep by independent researchers → judge scoring → synthesis with sources |
 | skill drift | `workflows/swarm-drift.js` | per repo: compare your generated convention skills against the actual code → merged ranked drift list |

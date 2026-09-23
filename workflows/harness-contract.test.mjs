@@ -128,6 +128,7 @@ test('swarm-smoke.js: legacy mode returns the graded shape', async () => {
   assert.equal(typeof r.result.pass, 'boolean')
   assert.ok(Array.isArray(r.result.confirmed))
   assert.ok(Array.isArray(r.result.raw))
+  assert.ok(Array.isArray(r.result.inconclusive), 'inconclusive verdicts are returned, never folded into rejected')
   assert.equal(r.result.baseline, null, 'no baseline outside graded mode')
 })
 
@@ -142,10 +143,11 @@ test('swarm-smoke.js: graded mode with STRINGIFIED args (C6) grades and baseline
 test('swarm-review.js: default dimensions produce the ranked-report shape', async () => {
   const r = await run('swarm-review.js', { repo: '/repo' })
   assertInvariants('swarm-review.js', r)
-  for (const k of ['confirmed', 'rejected', 'verifyFailed', 'waived', 'dimensionsCovered']) {
+  for (const k of ['confirmed', 'rejected', 'inconclusive', 'verifyFailed', 'waived', 'dimensionsCovered']) {
     assert.ok(Array.isArray(r.result[k]), `review result.${k} must be an array`)
   }
-  assert.ok(r.result.confirmed.length >= 1, 'the fake isReal finding must confirm')
+  assert.ok(r.result.confirmed.length >= 1, 'the fake confirmed verdict must confirm')
+  assert.equal(typeof r.result.inconclusiveMinors, 'number')
 })
 
 test('swarm-review.js: graded mode (expected) returns the smoke-compatible grading shape', async () => {

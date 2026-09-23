@@ -39,7 +39,13 @@ per task (implementer, tester, reviewer), +2 per fix round (fix, re-test),
 
 Multi-dimension review. Phases: Find (fused reviewer pass + specialist
 finders) → Verify (independent existence checks + severity gate) → ranked
-report.
+report. Every verify lens returns one of three verdicts — `confirmed`,
+`refuted` (only with counter-evidence: the input tried and the behaviour
+observed, or the file:line that rules the claim out) or `inconclusive` —
+with its evidence. A finding is confirmed when every lens confirms, refuted
+when every lens refutes, and inconclusive otherwise: "cannot confirm" is
+never folded into "refuted", and one lens alone can neither keep nor kill a
+finding another lens could not settle.
 
 | Arg | Required | Notes |
 |---|---|---|
@@ -51,14 +57,19 @@ report.
 | `thorough` | no | full rigor + coverage-guided extra find rounds until dry (capped), and implies `verify: 'strict'` |
 | `verify` | no | `'normal'` (default: 2-lens unanimous on critical/major, 1-lens on minors) or `'strict'` (full lens set for every severity, minors included; the `--verify=strict` flag sets this) |
 | `sinceRef` | no | diff-scoped: only code changed since this git ref |
+| `execRepro` | no | `true` = lenses on `bugs` findings must RUN the finding's repro (one-liner or OS-temp scratch file, never inside the repo); a confirmed/refuted verdict without an executed repro (one that left output) counts as inconclusive, and executed lenses outrank read-only ones — so it also switches OFF read-only confirmations and kills for bugs findings: use it only where repros can run. Default off: verify lenses are told not to execute repo code (finders are not restricted). It runs repo code — trusted repos only, see [security.md](security.md#repro-execution-opt-in) |
 | `waivers` | no | accepted findings to skip (see [configuration.md](configuration.md)) |
 | `topModel` | no | caps finder tier |
-| `expected` | no | `[{file, mustMatch?}]` — graded mode on an eval fixture, same contract as `swarm-smoke.js`: the result gains `pass`, `missed`, `unexpected`, `baseline` and `raw` (every deduped finder finding before verify). This is the tier that can measure the verify delta (see swarm-smoke.js below) |
+| `expected` | no | `[{file, mustMatch?}]` — graded mode on an eval fixture, same contract as `swarm-smoke.js`: the result gains `pass`, `missed`, `unexpected`, `missedInconclusive`, `unexpectedInconclusive` (planted bugs / false positives left unresolved — neither rejected nor killed), `baseline` and `raw` (every deduped finder finding before verify). This is the tier that can measure the verify delta (see swarm-smoke.js below) |
 
 Output: confirmed findings (file:line, severity, evidence; `waivedAttempt:
 true` marks a critical someone tried to waive — criticals are never waivable,
-and waiver `match` strings under 8 chars are skipped), rejected list,
-`verifyFailed` list (all verify lenses failed after retry — unresolved, not
+and waiver `match` strings under 8 chars are skipped), `rejected` (refuted),
+`inconclusive` (critical/major findings the lenses could not settle —
+unresolved, not rejected; an inconclusive critical blocks merge) plus
+`inconclusiveMinors` (a count; inconclusive minors are dropped), every one
+carrying its per-lens `lenses` evidence, `verifyFailed` list (all verify
+lenses failed after retry — an infrastructure failure, unresolved, not
 rejected), waived list, runtime checks it could not perform. Cost: 1 fused finder + 1 per specialist
 dimension, then 1–6 verify agents per finding (the upper end only on lens
 retries or a contested critical downgrade — a severity downgrade FROM
@@ -142,7 +153,8 @@ Plugin self-test against a planted-bug fixture. Phases: Find → Verify.
 | `fixtureDir` | yes | absolute path to `fixtures/smoke` (quick plumbing check) or `fixtures/eval` (graded) |
 | `expected` | no | `[{file, mustMatch?}]` — graded mode. The director reads the fixture's `expected.json` (workflow scripts have no filesystem access) and passes it through. Pass = every entry matched by a confirmed finding (`file` is a path substring, `mustMatch` a case-insensitive regex on the problem text); confirmed findings outside the expected files return under `unexpected` (false positives). |
 
-Output: pass/fail, `confirmed`, and in graded mode `missed` + `unexpected`
+Output: pass/fail, `confirmed`, `inconclusive` (same three-state verdict as
+swarm-review.js), and in graded mode `missed` + `unexpected`
 plus `baseline` — the RAW pre-verify finder output graded against the same
 expected set, at zero extra agents. The delta between `baseline` and the
 verified numbers is the measured value of the verify layer:
@@ -159,7 +171,7 @@ SessionStart update canary compares against it; after EVERY graded run
 (pass or fail) the director feeds it the graded numbers and it appends one
 JSONL line (date, host, plugin and Claude Code version, recall/precision
 plus the baseline numbers, and the run conditions — workflow, rigor,
-verify mode, finder/verify model, a short note) to
+verify mode, finder/verify model, unresolved-finding counts, a short note) to
 `codeswarm-eval-log.jsonl` next to the config and prints the running
 totals, overall and per workflow/rigor: the accumulated
 verified-vs-baseline delta across that log is the A/B evidence for the

@@ -90,8 +90,9 @@ runs before this string are not byte-comparable with runs after it):
 }
 ```
 
-Record each run via `tools/record-eval.js` with `"workflow":"review"` and the
-`rigor`/`verify` the run used, `"fixture":"fixtures/eval3"`, and
+Record each run via `tools/record-eval.js` with `"workflow":"review"`, the
+`rigor`/`verify` the run used, `"fixture":"fixtures/eval3"`, the result's
+`missedInconclusive`/`unexpectedInconclusive` counts, and
 `"notes":"canonical bait target"`. The log's two 2026-08-17 review-tier rows
 predate those fields and carry the label `fixtures/eval3-bait-review`
 instead.

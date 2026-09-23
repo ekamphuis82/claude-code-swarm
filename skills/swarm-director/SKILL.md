@@ -166,6 +166,7 @@ guess.
 | `--thorough` (alias `--rigor=full`) | config `rigor` (lite) | escalate THIS run to full rigor (see Cost model); pass `rigor: 'full'` to swarm-build/swarm-review |
 | `--verify=normal\|strict` | `normal` | verify regime under full rigor: `normal` = per the full tier; `strict` = full lens set for EVERY severity (pass `verify: 'strict'`) plus one cheap verifier agent (sonnet) on altitude-rule inline work; `--thorough` implies strict; ignored under lite |
 | `--max-model=<name>` | config `topModel`, else session model | model CEILING for this run's top-tier calls, overriding the config in BOTH directions (cap to `sonnet`, or raise above a configured cap) |
+| `--exec-repro` | off | pass `execRepro: true` to swarm-review.js: verify lenses on `bugs` findings must RUN the finding's repro (a confirmed/refuted verdict without an executed repro counts as inconclusive — so on code whose repros cannot run, every bugs finding ends inconclusive; use it only where they can). It runs repo code — only on repos the user trusts (their own code, the eval fixtures), never on an unread branch or fork; read docs/security.md "Repro execution" first and say in the fit line that it is on |
 | `--max-effort=low\|high\|xhigh\|max` | per-stage tiers | effort CEILING: clamp every per-task `effort` you assign to swarm-build tasks; other scripts have effort baked in — do not fake it for them |
 
 ## Config file (read at triage, before building any args)
@@ -253,7 +254,9 @@ End the report with EXACTLY ONE follow-up: "fix them?" — one question, no
 menu, no re-asking; no answer = the report stands.
 
 On yes, YOU build the swarm-build task list yourself (never ask the user
-for tasks, never re-run the review):
+for tasks, never re-run the review). Only CONFIRMED findings become tasks;
+`inconclusive` ones stay in the report as needing a human call — never fix
+what the verify layer could not establish:
 
 - Group findings per file/component; one task per group — no two tasks
   touch the same files.
@@ -294,15 +297,19 @@ totals. You only invoke it:
   from `baseline`) plus the run conditions: `"workflow":"smoke"|"review"`;
   for review also `"rigor"` and `"verify"` as the run used them,
   `"finderModel"` (the session model, or `topModel` when passed),
-  `"verifyModel":"sonnet"`;
+  `"verifyModel":"sonnet"`; for both, `"missedInconclusive"` and
+  `"unexpectedInconclusive"` (lengths of the result arrays of the same name —
+  planted bugs and false positives verify left unresolved);
   `"notes"` (≤300 chars) for anything else that shaped the run, e.g. a
   non-default `target` — never findings text. Any other field is rejected.
   The script stamps date, host and plugin version, normalizes the fixture
   path, appends the line to `codeswarm-eval-log.jsonl` next to the config,
   updates `lastSmokeVersion` only on a passing SMOKE row (never on a
-  review-tier run), and prints the running totals (runs, summed false
-  positives killed, summed real bugs wrongly rejected — overall and per
-  workflow/rigor under `byMode`) —
+  review-tier run), and prints the running totals
+  (runs, summed false positives killed, summed real bugs wrongly rejected,
+  summed unresolved false positives and real bugs — overall and per
+  workflow/rigor under `byMode`; an unresolved finding counts as neither a
+  kill nor a wrong rejection) —
   QUOTE those totals in your report. One run is an anecdote; the
   accumulated verified-vs-baseline delta across the log IS the A/B
   evidence for the verify layer. The log is per config dir, so per
@@ -442,7 +449,7 @@ still pass real JSON objects.
 | Script | Required args | Optional args |
 |---|---|---|
 | `swarm-build.js` | `repo`, `tasks [{id,title,agentType,brief}]` (`agentType` plugin-qualified — see FEATURE step 1) | `planPath`, `quiet`, `topModel`, `rigor` (pass only when `full` — see Cost model), `retrospect` (full/light/off; applies under full rigor only), per-task `stage` (consecutive tasks sharing a stage run in parallel — only for provably file-disjoint tasks; unset = sequential), per-task `effort` (`low` for mechanical tasks — ALSO skips that task's adversarial review, tester-only; omit to inherit the session effort; `high` for genuinely hard ones) |
-| `swarm-review.js` | `repo` | `target`, `dimensions` (bugs, security, wcag, performance, conventions, architecture, test-coverage — the last is opt-in, never in the default set; its finder is the tester agent), `a11yLevel` (off/A/AA/AAA, default AA; off drops wcag from the default set), `rigor` (see Cost model), `verify` (normal/strict — full rigor only), `thorough`, `quiet`, `topModel`, `sinceRef`, `waivers`, `expected [{file, mustMatch?}]` (graded mode on an eval fixture — same contract and result keys as `swarm-smoke.js`: `pass`, `missed`, `unexpected`, `baseline`, `raw`; log it via `tools/record-eval.js` like any graded run) |
+| `swarm-review.js` | `repo` | `target`, `dimensions` (bugs, security, wcag, performance, conventions, architecture, test-coverage — the last is opt-in, never in the default set; its finder is the tester agent), `a11yLevel` (off/A/AA/AAA, default AA; off drops wcag from the default set), `rigor` (see Cost model), `verify` (normal/strict — full rigor only), `thorough`, `quiet`, `topModel`, `sinceRef`, `waivers`, `execRepro` (see `--exec-repro`), `expected [{file, mustMatch?}]` (graded mode on an eval fixture — same contract and result keys as `swarm-smoke.js`: `pass`, `missed`, `unexpected`, `baseline`, `raw`; log it via `tools/record-eval.js` like any graded run) |
 | `swarm-refactor.js` | `repo`, `instruction` | `scope`, `quiet` |
 | `swarm-research.js` | `question` | `repo`, `angles[]`, `quiet`, `topModel` |
 | `swarm-onboard.js` | `pluginDir` (absolute path to the plugin clone — generation target); propose mode also needs `repos [{name,path}]` (scan — strongly recommended) OR `stacks [{name,version?,notes?}]` (stack-default fallback, ONBOARD step 0b; never both); generate mode also needs `proposal` (the user-approved proposal object, `origin` included) | `mode` (`propose` default; `generate`), `quiet`, `topModel`, `existingAgents [{name,description}]` (propose — the session's non-codeswarm custom agents, ONBOARD step 0c; the proposal marks role overlap), `adHocSpecialists` (generate — pass `true` when the config carries it; softens the routing hint in generated descriptions) |
@@ -497,9 +504,20 @@ loop-until-dry second round with fresh finder prompts.
   confirmed, carries `waivedAttempt: true` — treat it as a full blocker.
   When the user dismisses a finding, append it there; never delete
   silently.
+- Review verdicts are three-state per finding: `confirmed`, `refuted`
+  (listed under `rejected` — every lens refuted with counter-evidence) or
+  `inconclusive` (anything else: a lens could not decide, or the lenses
+  contradicted each other — one lens alone can neither keep nor kill a
+  finding). `inconclusive` holds the
+  critical/major ones — UNRESOLVED, not rejected: report them next to the
+  confirmed findings, and an inconclusive critical blocks merge exactly like
+  a confirmed one; `inconclusiveMinors` only counts the dropped minors.
+  Every bucket carries the per-lens `lenses` (verdict, evidence, whether a
+  repro ran and what it printed) — read it before calling a rejection
+  settled.
 - Review output extras: `verifyFailed` = findings whose every verify lens
-  failed after retry (infrastructure, NOT a rejection — unresolved; a
-  critical there blocks merge); `lensFailures` on a finding = confirmed on
+  failed after retry (infrastructure, NOT a rejection and NOT the same as
+  inconclusive — unresolved; a critical there blocks merge); `lensFailures` on a finding = confirmed on
   fewer lenses than requested (degraded confidence). A severity downgrade
   FROM critical requires two independent agreeing severity checks — one
   flaky check can never hide a critical (or un-block its waiver).

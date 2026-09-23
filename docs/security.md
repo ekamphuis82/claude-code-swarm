@@ -30,8 +30,8 @@ file. `sh hooks/hooks.test.sh` pipe-tests both.
 ## Where the plugin writes on disk
 
 **Plugin state: four paths, and no others.** Three sit outside the plugin
-directory; one sits inside it. Two further files are transient, and two
-more can be left behind in a repo you point the swarm at — all four are
+directory; one sits inside it. Three further files are transient, and two
+more can be left behind in a repo you point the swarm at — all five are
 listed under the table. Everything here is local; nothing is uploaded (see
 [No telemetry](#no-telemetry)).
 
@@ -55,7 +55,7 @@ directory just makes the canary go silent.) The runner additionally accepts
 
 ### Transient files
 
-Two writes are working files rather than state — both local, both short-lived:
+Three writes are working files rather than state — all local, all short-lived:
 
 - **The issue-tracker auth header** (`skills/swarm-issues`). On the `curl`
   path the director writes the header line — which contains the token — to
@@ -71,6 +71,11 @@ Two writes are working files rather than state — both local, both short-lived:
   <commit>:workflows/x.js`) into `<configDir>/codeswarm-runs/` and passes
   that path to the Workflow tool. Plain source from your own history, no
   secrets; delete the directory whenever you like.
+- **A verify-lens repro scratch file** (`workflows/swarm-review.js`, only
+  with `execRepro`). A lens executing a finding's repro may write a scratch
+  file under the OS temp directory — never inside the repo. The confinement
+  is a prompt rule, not a mechanism; see
+  [Repro execution](#repro-execution-opt-in).
 
 ### Why the config is not kept in the plugin directory
 
@@ -103,7 +108,9 @@ worse one:
   you already made.
 - **Agents never write to your target repositories outside the task you
   asked for.** A build or refactor changes code because that is the job;
-  research, drift and smoke runs are read-only. Two plugin-generated
+  research, drift, smoke and review runs write nothing in the repo.
+  Read-only is not "runs nothing": agents carry `Bash`, and review agents
+  can execute repo code — see [Repro execution](#repro-execution-opt-in). Two plugin-generated
   bookkeeping files can land in a repo, both listed just below.
 
 ### Files the plugin can leave in a target repo
@@ -165,6 +172,43 @@ passing run it updates the `lastSmokeVersion` key inside `codeswarm.json`
 (preserving every other key; it never creates a config file). No network,
 no spawned processes; invalid input fails loud with a non-zero exit.
 `node --test tools/record-eval.test.mjs` covers it.
+
+## Repro execution (opt-in)
+
+`swarm-review.js` verify lenses are told not to execute repo code by
+default: they judge by reading, and may run only a self-contained snippet
+that loads no repo file (to check a language semantic, say). That rule
+covers the verify lenses only. The finder agents carry `Bash` and are not
+restricted — a finder may run the code it reviews on its own initiative (a
+live `eval3` run on 2026-09-23 showed the finder confirming its own claims
+with `node`). So review is never a sandbox: do not point it at code you
+would not run, with or without `execRepro`. `execRepro: true` (director
+flag `--exec-repro`) changes that for `bugs` findings: the lens builds the
+finding's repro and runs it — a one-liner loading the module by its
+absolute path, or a scratch file under the OS temp directory — and a
+confirmed or refuted verdict without an executed repro counts as
+inconclusive. What that means before you turn it on:
+
+- **It runs the repo's code with your user's rights.** Loading a module runs
+  its top-level code. On a branch or fork you have not read, that is
+  arbitrary code execution — use `execRepro` only on code you trust (your
+  own repos, the eval fixtures).
+- **The data fence does not help here.** The repro is built from the
+  finder's scenario, which is repo-derived text; the fence stops a lens from
+  following instructions in that text, but running the described input is
+  the whole point of the regime.
+- **The guardrails are prompt rules, not mechanisms.** Lenses are told never
+  to create or edit a file inside the repo, to use no network, to run only the
+  language runtime against the module under test (never a shell command
+  quoted from the scenario), and never to run the repo's test
+  runner, package scripts, build or installer (those execute config files:
+  test-runner configs, setup files, `conftest.py`, `package.json` scripts).
+  Nothing enforces that below the prompt except your permission prompts —
+  and under `bypassPermissions`, or the standalone runner with pre-granted
+  tools, there are none.
+- **Lenses run in parallel.** Each finding's lenses run concurrently, so two
+  of them can be executing at once; a crashed lens can leave its temp file
+  behind (OS temp only).
 
 ## Standalone runner (`runner/`)
 

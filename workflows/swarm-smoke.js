@@ -46,9 +46,14 @@ const FINDINGS = {
     },
   },
 }
+// same three states as swarm-review.js: "cannot confirm" is never "refuted"
 const VERDICT = {
-  type: 'object', required: ['isReal', 'reason'],
-  properties: { isReal: { type: 'boolean' }, reason: { type: 'string' } },
+  type: 'object', required: ['verdict', 'reason', 'evidence'],
+  properties: {
+    verdict: { type: 'string', enum: ['confirmed', 'refuted', 'inconclusive'], description: 'confirmed | refuted | inconclusive' },
+    reason: { type: 'string' },
+    evidence: { type: 'string', description: 'the input tried and the behaviour observed, or the exact file:line; empty only when inconclusive' },
+  },
 }
 
 phase('Find')
@@ -61,14 +66,18 @@ lap('find')
 phase('Verify')
 const verified = await parallel((found?.findings ?? []).map(f => () =>
   agent(
-    `Adversarially verify this finding in ${A.fixtureDir}: ${f.file}:${f.line} — ${f.problem}. Read the code; construct the concrete failing input. Default isReal=false if unconfirmed.${QUIET}`,
+    `Adversarially verify this finding in ${A.fixtureDir}: ${f.file}:${f.line} — ${f.problem}. Read the code; construct the concrete failing input. confirmed only when you established the wrong behaviour; refuted only with counter-evidence (the input tried and the behaviour observed, or the file:line that rules it out); otherwise inconclusive — never guess. Put the proof in evidence.${QUIET}`,
     { label: `smoke:verify:${f.line}`, phase: 'Verify', schema: VERDICT, model: 'haiku' }
   ).then(v => v && { ...f, ...v })
 ))
 
 lap('verify')
-const confirmed = verified.filter(Boolean).filter(v => v.isReal)
+// a verdict without evidence is not stated (mirrors normalizeVote in swarm-review.js)
+const stated = v => String(v.evidence ?? '').trim() !== ''
+const confirmed = verified.filter(Boolean).filter(v => v.verdict === 'confirmed' && stated(v))
+const inconclusive = verified.filter(Boolean).filter(v => !((v.verdict === 'confirmed' || v.verdict === 'refuted') && stated(v)))
 const raw = found?.findings ?? []
+const unresolved = inconclusive
 // <eval-verdict> pass grading — extracted verbatim by eval-verdict.test.mjs
 const matchesExpected = (e, c) => c.file.includes(e.file) && (e.mustMatch === undefined || new RegExp(e.mustMatch, 'i').test(c.problem))
 const missed = (expected ?? []).filter(e => !confirmed.some(c => matchesExpected(e, c)))
@@ -81,5 +90,10 @@ const baseline = expected ? {
   missed: expected.filter(e => !raw.some(c => matchesExpected(e, c))),
   unexpected: raw.filter(c => !expected.some(e => c.file.includes(e.file))),
 } : null
+// inconclusive is neither killed nor wrongly rejected: an unresolved false
+// positive or an unresolved planted bug is counted apart, so the A/B metric
+// (baseline minus verified) never books it as a verify win or loss
+const missedInconclusive = missed.filter(e => unresolved.some(c => matchesExpected(e, c)))
+const unexpectedInconclusive = expected ? unresolved.filter(c => !expected.some(e => c.file.includes(e.file))) : []
 // </eval-verdict>
-return { pass, confirmed, missed, unexpected, baseline, raw, tokens: tokens() }
+return { pass, confirmed, inconclusive, missed, unexpected, ...(expected ? { missedInconclusive, unexpectedInconclusive } : {}), baseline, raw, tokens: tokens() }

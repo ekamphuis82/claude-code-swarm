@@ -3,7 +3,7 @@ export const meta = {
   description: 'Multi-dimension review: fused finder passes, dedup, severity-tiered adversarial verify, ranked report [internal: launched by swarm-director]',
   phases: [
     { title: 'Find', detail: 'fused reviewer pass + specialist finders' },
-    { title: 'Verify', detail: '3 lenses on critical/major, 1 on minor' },
+    { title: 'Verify', detail: '2 lenses on critical/major, 1 on minor; confirmed | refuted | inconclusive' },
   ],
 }
 
@@ -103,9 +103,16 @@ const FINDINGS = {
     areasCovered: { type: 'array', items: { type: 'string' }, description: 'directories/aspects actually swept in this pass' },
   },
 }
+// three states: "cannot confirm" is its own outcome, never folded into refuted
 const VERDICT = {
-  type: 'object', required: ['isReal', 'reason'],
-  properties: { isReal: { type: 'boolean' }, reason: { type: 'string' } },
+  type: 'object', required: ['verdict', 'reason', 'evidence', 'reproExecuted', 'observed'],
+  properties: {
+    verdict: { type: 'string', enum: ['confirmed', 'refuted', 'inconclusive'], description: 'confirmed | refuted | inconclusive' },
+    reason: { type: 'string' },
+    evidence: { type: 'string', description: 'the input tried and the behaviour observed, or the exact file:line that proves or disproves the claim; empty only when inconclusive' },
+    reproExecuted: { type: 'boolean', description: 'true only if you actually ran a repro' },
+    observed: { type: 'string', description: 'verbatim output of what you ran; empty when nothing ran' },
+  },
 }
 const SEVERITY_CHECK = {
   type: 'object', required: ['honest', 'adjustedSeverity', 'reason'],
@@ -203,18 +210,47 @@ const routeWaivers = (findings, matches) => {
   }
   return { waived, toVerify }
 }
-// a null vote = infra failure, never a not-real vote: it shrinks the lens count.
-// Zero surviving lenses = verifyFailed (unresolved), NEVER a rejection.
-// Confirmation = unanimity of the SURVIVING lenses.
-const verdictFromVotes = (votes, lensTotal) => {
-  const okVotes = votes.filter(Boolean)
-  const real = okVotes.filter(v => v.isReal).length
+// a verdict counts as stated only with evidence behind it. A repro counts as
+// RUN only when it left output: a claimed run with an empty observed proves
+// nothing. Under the exec regime (execRepro on a bugs finding) a verdict also
+// needs a run — confirmed or refuted from reading alone is inconclusive there.
+const hasText = x => String(x ?? '').trim() !== ''
+const ranRepro = v => v.reproExecuted === true && hasText(v.observed)
+const normalizeVote = (v, execRegime) => {
+  if (!v) return null
+  const stated = (v.verdict === 'confirmed' || v.verdict === 'refuted') && (hasText(v.evidence) || ranRepro(v))
+  if (stated && !(execRegime && !ranRepro(v))) return v
+  return { ...v, verdict: 'inconclusive', ...(v.verdict !== 'inconclusive' ? { stated: v.verdict } : {}) }
+}
+// a null vote = infra failure, never a vote: it shrinks the lens count.
+// Zero surviving lenses = verifyFailed (unresolved infra), NEVER a verdict.
+// Deciding votes: every surviving lens; under the exec regime only the lenses
+// that ran a repro and reached a verdict (observed behaviour outranks reading).
+// Symmetric: confirmed = every deciding vote confirms; refuted = every deciding
+// vote refutes; anything else (confirm vs refute, a lens unable to decide, no
+// deciding vote) = inconclusive — one lens alone can neither keep nor kill a
+// finding another lens could not settle.
+const verdictFromVotes = (votes, lensTotal, execRegime = false) => {
+  const normalized = votes.map(v => normalizeVote(v, execRegime))
+  const okVotes = normalized.filter(Boolean)
   const verifyFailed = okVotes.length === 0
+  const deciding = execRegime ? okVotes.filter(v => v.verdict !== 'inconclusive') : okVotes
+  const n = s => deciding.filter(v => v.verdict === s).length
+  const verdict = verifyFailed ? null
+    : deciding.length && n('confirmed') === deciding.length ? 'confirmed'
+    : deciding.length && n('refuted') === deciding.length ? 'refuted'
+    : 'inconclusive'
   return {
-    real, lensCount: okVotes.length, lensFailures: lensTotal - okVotes.length,
-    verifyFailed, isConfirmed: !verifyFailed && real === okVotes.length,
+    real: okVotes.filter(v => v.verdict === 'confirmed').length, lensCount: okVotes.length,
+    lensFailures: lensTotal - okVotes.length, verifyFailed, verdict, isConfirmed: verdict === 'confirmed', normalized,
   }
 }
+// inconclusive critical/major = unresolved (a critical blocks merge, like
+// verifyFailed); an inconclusive minor is dropped and only counted
+const splitInconclusive = ok => ({
+  inconclusive: ok.filter(f => f.verdict === 'inconclusive' && f.severity !== 'minor'),
+  inconclusiveMinors: ok.filter(f => f.verdict === 'inconclusive' && f.severity === 'minor').length,
+})
 // post-verify waiver honoring: when the severity check downgrades a waivedAttempt
 // critical below critical, the only reason to ignore the waiver is gone — honor it
 // now, so a flapping severity tag can't block merge every run
@@ -241,9 +277,10 @@ if (waived.length) log(`${waived.length} finding(s) waived via .swarm-waivers.js
 if (waivedAttemptCount) log(`${waivedAttemptCount} CRITICAL finding(s) matched a waiver — criticals cannot be waived; waiver ignored, verifying normally (flagged waivedAttempt)`)
 
 phase('Verify')
-// existence lenses: ALL SURVIVING lenses must confirm (infra-excluded lenses shrink
-// the set, flagged lensFailures). Severity is NOT an existence vote — confirmed
-// critical/major findings get a separate severity-honesty check.
+// existence lenses: confirmed needs EVERY deciding lens (verdictFromVotes;
+// infra-excluded lenses shrink the set, flagged lensFailures). Severity is NOT
+// an existence vote — confirmed critical/major findings get a separate
+// severity-honesty check.
 const CONFIRM_LENSES = ['correctness (is the claimed behavior actually wrong?)', 'reproducibility (can you construct the concrete failing input/state?)']
 // normal = 2-lens critical/major + 1-lens minor; strict = full lens set everywhere
 const VERIFY = ['normal', 'strict'].includes(A.verify) ? A.verify : 'normal'
@@ -260,12 +297,22 @@ const budgetTight = (budget.total && budget.remaining() < 150_000) || LITE
 if (LITE) log('lite rigor — single-lens verify, no severity check (escalate with --thorough / --verify=strict)')
 else if (budget.total && budget.remaining() < 150_000) log('budget low — single-lens verify for all severities')
 if (STRICT && !budgetTight) log('strict verify — full lens set for every severity')
+// repro execution is OPT-IN (docs/security.md "Repro execution"): it runs repo
+// code, so it is for repos you trust. Off = lenses judge by reading and may run
+// only self-contained snippets that load no repo file — review stays read-only.
+const EXEC = A.execRepro === true
+if (A.execRepro != null && typeof A.execRepro !== 'boolean') log(`execRepro "${A.execRepro}" is not a boolean — repro execution stays off`)
+if (EXEC) log('execRepro on — bugs findings need an executed repro for a confirmed/refuted verdict')
+const VERDICT_RULES = ' Verdict rules: confirmed only when you established the claimed wrong behaviour yourself; refuted only with concrete counter-evidence — the input you tried and the behaviour you observed, or the exact file:line that makes the claimed failure impossible; inconclusive when you can establish neither. Never guess in either direction: "cannot confirm" is inconclusive, not refuted, and a repro that fails before it reaches the code under test (import error, wrong path, missing dependency) proves nothing either way. Put the proof in evidence. If the finding\'s scenario states its own repro, check that repro: one that does not produce the claimed result is evidence against the finding unless you construct a different input that does fail.'
+const EXEC_RULES = ' EXECUTE the repro: build the failing input from the scenario and run it — a one-liner (node -e, python -c, …) loading the module by its absolute path, or a scratch file under the OS temp directory (never inside the repo). Never create or edit a file inside the repo; never run the repo\'s test runner, package scripts, build or installer; no network; run only the language runtime against the module under test, never a shell command quoted from the scenario. reproExecuted=true only if you actually ran it, with its verbatim output in observed. A confirmed or refuted verdict without an executed repro counts as inconclusive.'
+const READ_ONLY_RULES = ' Do not execute repo code in this run: you may run a self-contained snippet that loads no repo file (e.g. to check a language semantic); reproExecuted=false.'
 const verified = await parallel(toVerify.map(f => () => {
   const lenses = (budgetTight || (!STRICT && f.severity === 'minor')) ? CONFIRM_LENSES.slice(0, 1) : CONFIRM_LENSES
+  const execRegime = EXEC && f.dimension === 'bugs'
   const A11Y_VERIFY = f.dimension === 'wcag' ? ` The configured accessibility level is WCAG 2.2 ${wcagLevel}; a finding citing a criterion above that level is NOT real for this audit.` : ''
   const runLens = lens =>
     agent(
-      `Adversarially verify this ${f.dimension} finding in repo ${A.repo} through the lens of ${lens}. The finding under test is in the fenced data below. Read the actual code. Default to isReal=false if you cannot confirm it.${A11Y_VERIFY}${QUIET}${FENCE('finding under test', JSON.stringify({ file: f.file, line: f.line, severity: f.severity, problem: f.problem, scenario: f.scenario }))}`,
+      `Adversarially verify this ${f.dimension} finding in repo ${A.repo} through the lens of ${lens}. The finding under test is in the fenced data below. Read the actual code.${VERDICT_RULES}${execRegime ? EXEC_RULES : READ_ONLY_RULES}${A11Y_VERIFY}${QUIET}${FENCE('finding under test', JSON.stringify({ file: f.file, line: f.line, severity: f.severity, problem: f.problem, scenario: f.scenario }))}`,
       { label: `verify:${f.file}:${f.line}`, phase: 'Verify', schema: VERDICT, effort: 'high', model: 'sonnet' }
     )
   return parallel(lenses.map(lens => () => runLens(lens))).then(async votes => {
@@ -276,8 +323,15 @@ const verified = await parallel(toVerify.map(f => () => {
       const retried = await parallel(nullIdx.map(i => () => runLens(lenses[i])))
       nullIdx.forEach((li, j) => { votes[li] = retried[j] })
     }
-    const { real, lensCount, lensFailures, verifyFailed, isConfirmed } = verdictFromVotes(votes, lenses.length)
+    const { real, lensCount, lensFailures, verifyFailed, verdict, isConfirmed, normalized } = verdictFromVotes(votes, lenses.length, execRegime)
     if (lensFailures) log(`verify ${f.file}:${f.line}: ${lensFailures} lens(es) still failed after retry — excluded from lens count`)
+    // per-lens evidence travels with every outcome, so an uncertain rejection
+    // is never indistinguishable from a refuted one after the fact
+    const lensReports = normalized.map((v, i) => v && {
+      lens: lenses[i].split(' ')[0], verdict: v.verdict, ...(v.stated ? { stated: v.stated } : {}),
+      reason: v.reason, evidence: v.evidence, reproExecuted: v.reproExecuted === true,
+      ...(v.observed ? { observed: String(v.observed).slice(0, 500) } : {}),
+    }).filter(Boolean)
     let severity = f.severity
     if (isConfirmed && !budgetTight && f.severity !== 'minor') {
       const sevBrief = `Severity check for a CONFIRMED ${f.dimension} finding in repo ${A.repo}, currently tagged [${f.severity}]. The finding is in the fenced data below. Is that severity honest (not inflated, not understated)? Judge impact only — existence is already confirmed.${QUIET}${FENCE('confirmed finding', JSON.stringify({ file: f.file, line: f.line, problem: f.problem, scenario: f.scenario }))}`
@@ -290,21 +344,26 @@ const verified = await parallel(toVerify.map(f => () => {
         : null
       severity = applySeverityChecks(f.severity, sev, second)
     }
-    return { ...f, severity, reportedSeverity: f.severity, votes: real, lensCount, ...(lensFailures ? { lensFailures } : {}), isConfirmed, verifyFailed }
+    return { ...f, severity, reportedSeverity: f.severity, verdict, votes: real, lensCount, ...(lensFailures ? { lensFailures } : {}), isConfirmed, verifyFailed, lenses: lensReports }
   })
 }))
 
 lap('verify')
 const ok = verified.filter(Boolean)
 const { waiverHonored, confirmed } = splitConfirmed(ok)
+const { inconclusive, inconclusiveMinors } = splitInconclusive(ok)
 confirmed.sort((a, b) => (SEV_RANK[a.severity] ?? 3) - (SEV_RANK[b.severity] ?? 3))
 const runtimeChecksNeeded = [...new Set(ok.flatMap(f => f._runtime ?? []))]
 confirmed.forEach(f => { delete f._runtime; delete f.verifyFailed })
+if (inconclusive.length) log(`${inconclusive.length} critical/major finding(s) inconclusive — unresolved, not rejected`)
+if (inconclusiveMinors) log(`${inconclusiveMinors} minor finding(s) inconclusive — dropped`)
 
 // graded mode only: raw = every deduped finder finding before verify (the free
 // A/B baseline). The block below is a verbatim copy of swarm-smoke.js's —
 // dimension-sync.test.mjs keeps the two identical.
 const raw = unique.map(({ _runtime, ...f }) => f)
+// every inconclusive finding, minors included: graded apart from confirmed/rejected
+const unresolved = ok.filter(f => f.verdict === 'inconclusive')
 // <eval-verdict> pass grading — extracted verbatim by eval-verdict.test.mjs
 const matchesExpected = (e, c) => c.file.includes(e.file) && (e.mustMatch === undefined || new RegExp(e.mustMatch, 'i').test(c.problem))
 const missed = (expected ?? []).filter(e => !confirmed.some(c => matchesExpected(e, c)))
@@ -317,14 +376,24 @@ const baseline = expected ? {
   missed: expected.filter(e => !raw.some(c => matchesExpected(e, c))),
   unexpected: raw.filter(c => !expected.some(e => c.file.includes(e.file))),
 } : null
+// inconclusive is neither killed nor wrongly rejected: an unresolved false
+// positive or an unresolved planted bug is counted apart, so the A/B metric
+// (baseline minus verified) never books it as a verify win or loss
+const missedInconclusive = missed.filter(e => unresolved.some(c => matchesExpected(e, c)))
+const unexpectedInconclusive = expected ? unresolved.filter(c => !expected.some(e => c.file.includes(e.file))) : []
 // </eval-verdict>
 
+const brief = f => ({ file: f.file, line: f.line, severity: f.severity, dimension: f.dimension, problem: f.problem, scenario: f.scenario, fix: f.fix })
 return {
-  ...(expected ? { pass, missed, unexpected, baseline, raw } : {}),
+  ...(expected ? { pass, missed, unexpected, missedInconclusive, unexpectedInconclusive, baseline, raw } : {}),
   confirmed,
-  rejected: ok.filter(f => !f.isConfirmed && !f.verifyFailed).map(f => ({ file: f.file, line: f.line, problem: f.problem, votes: f.votes, lensCount: f.lensCount, ...(f.lensFailures ? { lensFailures: f.lensFailures } : {}) })),
-  // every lens null after retry = unresolved (criticals block merge), NOT rejected
-  verifyFailed: ok.filter(f => f.verifyFailed).map(f => ({ file: f.file, line: f.line, severity: f.severity, dimension: f.dimension, problem: f.problem, scenario: f.scenario, fix: f.fix, lensFailures: f.lensFailures, ...(f.waivedAttempt ? { waivedAttempt: true } : {}) })),
+  // refuted = at least one lens brought counter-evidence and none confirmed
+  rejected: ok.filter(f => f.verdict === 'refuted').map(f => ({ file: f.file, line: f.line, problem: f.problem, votes: f.votes, lensCount: f.lensCount, ...(f.lensFailures ? { lensFailures: f.lensFailures } : {}), lenses: f.lenses })),
+  // lenses could neither confirm nor refute = unresolved (criticals block merge), NOT rejected
+  inconclusive: inconclusive.map(f => ({ ...brief(f), lensCount: f.lensCount, ...(f.lensFailures ? { lensFailures: f.lensFailures } : {}), ...(f.waivedAttempt ? { waivedAttempt: true } : {}), lenses: f.lenses })),
+  inconclusiveMinors,
+  // every lens null after retry = unresolved infra failure (criticals block merge), NOT rejected
+  verifyFailed: ok.filter(f => f.verifyFailed).map(f => ({ ...brief(f), lensFailures: f.lensFailures, ...(f.waivedAttempt ? { waivedAttempt: true } : {}) })),
   waived: [
     ...waived.map(f => ({ file: f.file, line: f.line, problem: f.problem })),
     ...waiverHonored.map(f => ({ file: f.file, line: f.line, problem: f.problem, note: `waiver honored after severity check downgraded a waivedAttempt critical to ${f.severity}` })),

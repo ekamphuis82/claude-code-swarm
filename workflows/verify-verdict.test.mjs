@@ -17,8 +17,8 @@ assert.ok(m, 'verify-verdict markers present in swarm-review.js')
 
 // the block is pure by contract — evaluate with NO injected globals so any
 // accidental dependency on A/log/process fails loudly here
-const { routeWaivers, verdictFromVotes, splitConfirmed, applySeverityChecks } =
-  new Function(m[1] + '\nreturn { routeWaivers, verdictFromVotes, splitConfirmed, applySeverityChecks }')()
+const { routeWaivers, normalizeVote, verdictFromVotes, splitInconclusive, splitConfirmed, applySeverityChecks } =
+  new Function(m[1] + '\nreturn { routeWaivers, normalizeVote, verdictFromVotes, splitInconclusive, splitConfirmed, applySeverityChecks }')()
 
 // --- routeWaivers: criticals are never waivable ---
 
@@ -45,37 +45,111 @@ test('matching CRITICAL is NOT waived — verified with waivedAttempt flag', () 
   assert.equal(f.waivedAttempt, undefined, 'original finding object must not be mutated')
 })
 
-// --- verdictFromVotes: null lens = infra failure, never a not-real vote ---
+// --- verdictFromVotes: three states; null lens = infra failure, never a vote ---
 
-test('all lenses real → confirmed', () => {
-  const v = verdictFromVotes([{ isReal: true }, { isReal: true }], 2)
-  assert.deepEqual(v, { real: 2, lensCount: 2, lensFailures: 0, verifyFailed: false, isConfirmed: true })
+const C = (evidence = 'ran f([]) → throws') => ({ verdict: 'confirmed', reason: 'r', evidence, reproExecuted: false, observed: '' })
+const R = (evidence = 'guards.js:4 clamps the start') => ({ verdict: 'refuted', reason: 'r', evidence, reproExecuted: false, observed: '' })
+const I = () => ({ verdict: 'inconclusive', reason: 'r', evidence: '', reproExecuted: false, observed: '' })
+const X = v => ({ ...v, reproExecuted: true, observed: 'out' }) // the lens actually ran the repro
+
+test('all lenses confirm → confirmed', () => {
+  const v = verdictFromVotes([C(), C()], 2)
+  assert.equal(v.verdict, 'confirmed')
+  assert.equal(v.isConfirmed, true)
+  assert.deepEqual([v.real, v.lensCount, v.lensFailures, v.verifyFailed], [2, 2, 0, false])
 })
 
-test('one not-real lens → rejected (unanimity required), not verifyFailed', () => {
-  const v = verdictFromVotes([{ isReal: true }, { isReal: false }], 2)
+test('an UNCERTAIN lens never kills a finding: [confirmed, inconclusive] → inconclusive, not refuted', () => {
+  const v = verdictFromVotes([C(), I()], 2)
+  assert.equal(v.verdict, 'inconclusive')
   assert.equal(v.isConfirmed, false)
   assert.equal(v.verifyFailed, false)
 })
 
-test('null lens is EXCLUDED, not counted as not-real: [null, real] still confirms', () => {
-  const v = verdictFromVotes([null, { isReal: true }], 2)
-  assert.equal(v.isConfirmed, true)
+test('lenses that contradict each other → inconclusive (contested, not a rejection)', () => {
+  assert.equal(verdictFromVotes([C(), R()], 2).verdict, 'inconclusive')
+})
+
+test('symmetric: refuted needs EVERY deciding lens to refute — [refuted, inconclusive] → inconclusive', () => {
+  assert.equal(verdictFromVotes([R(), R()], 2).verdict, 'refuted')
+  assert.equal(verdictFromVotes([R()], 1).verdict, 'refuted')
+  assert.equal(verdictFromVotes([R(), I()], 2).verdict, 'inconclusive', 'one lens alone cannot kill what another could not settle')
+})
+
+test('all lenses inconclusive → inconclusive', () => {
+  assert.equal(verdictFromVotes([I(), I()], 2).verdict, 'inconclusive')
+})
+
+test('a verdict WITHOUT evidence is not stated → inconclusive (both directions)', () => {
+  assert.equal(verdictFromVotes([R('  ')], 1).verdict, 'inconclusive')
+  assert.equal(verdictFromVotes([C('')], 1).verdict, 'inconclusive')
+  assert.equal(normalizeVote(R(''), false).stated, 'refuted', 'the lens\'s own claim is kept for the report')
+})
+
+test('exec regime: a claimed run with EMPTY output is not a run, even with prose evidence', () => {
+  assert.equal(verdictFromVotes([{ ...R('a guard exists'), reproExecuted: true, observed: '' }], 1, true).verdict, 'inconclusive')
+  assert.equal(verdictFromVotes([{ ...C('it throws'), reproExecuted: true, observed: '  ' }, X(R())], 2, true).verdict, 'refuted',
+    'the empty-output confirmation drops out; the real run decides')
+})
+
+test('an executed repro\'s output counts as evidence', () => {
+  assert.equal(verdictFromVotes([{ ...X(R('')), observed: 'tail([1,2,3],2) → [2,3]' }], 1, true).verdict, 'refuted')
+  assert.equal(verdictFromVotes([{ ...R(''), reproExecuted: true, observed: '' }], 1).verdict, 'inconclusive', 'an empty run proves nothing')
+})
+
+test('null lens is EXCLUDED, not counted: [null, confirmed] still confirms', () => {
+  const v = verdictFromVotes([null, C()], 2)
+  assert.equal(v.verdict, 'confirmed')
   assert.equal(v.lensFailures, 1)
   assert.equal(v.lensCount, 1)
 })
 
-test('all lenses null → verifyFailed, NEVER a rejection', () => {
+test('all lenses null → verifyFailed with NO verdict, never a rejection', () => {
   const v = verdictFromVotes([null, null], 2)
   assert.equal(v.verifyFailed, true)
+  assert.equal(v.verdict, null)
   assert.equal(v.isConfirmed, false)
   assert.equal(v.lensFailures, 2)
 })
 
-test('single-lens (lite/minor) real vote confirms', () => {
-  const v = verdictFromVotes([{ isReal: true }], 1)
-  assert.equal(v.isConfirmed, true)
-  assert.equal(v.lensFailures, 0)
+test('normalized votes stay index-aligned with the lenses (nulls kept in place)', () => {
+  const v = verdictFromVotes([null, C()], 2)
+  assert.equal(v.normalized.length, 2)
+  assert.equal(v.normalized[0], null)
+  assert.equal(v.normalized[1].verdict, 'confirmed')
+})
+
+// --- exec regime: executed repros decide, reading alone does not ---
+
+test('exec regime: an unexecuted confirmation or refutation counts as inconclusive', () => {
+  assert.equal(verdictFromVotes([C()], 1, true).verdict, 'inconclusive')
+  assert.equal(verdictFromVotes([R()], 1, true).verdict, 'inconclusive')
+  assert.equal(normalizeVote(R(), true).stated, 'refuted')
+})
+
+test('exec regime: executed repros decide — an executed refutation outranks a read-only confirmation', () => {
+  assert.equal(verdictFromVotes([C(), X(R())], 2, true).verdict, 'refuted', 'the fooled reader loses to the observed run')
+  assert.equal(verdictFromVotes([X(C()), I()], 2, true).verdict, 'confirmed', 'an observed failure confirms')
+  assert.equal(verdictFromVotes([X(C()), X(R())], 2, true).verdict, 'inconclusive', 'contradictory runs stay unresolved')
+})
+
+test('outside the exec regime reproExecuted is irrelevant', () => {
+  assert.equal(verdictFromVotes([C(), X(R())], 2, false).verdict, 'inconclusive')
+})
+
+// --- splitInconclusive: majors/criticals stay visible, minors are only counted ---
+
+test('inconclusive critical/major = unresolved bucket; inconclusive minors dropped and counted', () => {
+  const ok = [
+    { verdict: 'inconclusive', severity: 'critical' },
+    { verdict: 'inconclusive', severity: 'major' },
+    { verdict: 'inconclusive', severity: 'minor' },
+    { verdict: 'refuted', severity: 'major' },
+    { verdict: 'confirmed', severity: 'minor' },
+  ]
+  const { inconclusive, inconclusiveMinors } = splitInconclusive(ok)
+  assert.deepEqual(inconclusive.map(f => f.severity), ['critical', 'major'])
+  assert.equal(inconclusiveMinors, 1)
 })
 
 // --- splitConfirmed: waiver honored only after a downgrade below critical ---
@@ -101,7 +175,7 @@ test('plain confirmed finding (no waivedAttempt) passes through', () => {
   assert.equal(waiverHonored.length, 0)
 })
 
-test('unconfirmed findings land in neither bucket (routed to rejected/verifyFailed downstream)', () => {
+test('unconfirmed findings land in neither bucket (routed to rejected/inconclusive/verifyFailed downstream)', () => {
   const { confirmed, waiverHonored } = splitConfirmed([{ isConfirmed: false, waivedAttempt: true, severity: 'major' }])
   assert.equal(confirmed.length, 0)
   assert.equal(waiverHonored.length, 0)

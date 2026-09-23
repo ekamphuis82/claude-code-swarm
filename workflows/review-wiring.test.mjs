@@ -1,9 +1,10 @@
 // Wiring test for swarm-review.js's verify machinery: executes the PRODUCTION
 // script through the real standalone-runner harness (runner/harness.js) with
 // scenario drivers forcing paths the harness-contract fakes never reach —
-// their schema-derived fakes answer isReal=true / honest=true / never null, so
-// the contested-critical downgrade, the rejected path, waiver routing, lens
-// retry/exclusion and verifyFailed are all dead code there.
+// their schema-derived fakes answer verdict=confirmed / honest=true / never null, so
+// the contested-critical downgrade, the rejected and inconclusive paths, waiver
+// routing, lens retry/exclusion, verifyFailed, the exec regime and graded mode
+// are all dead code there.
 // verify-verdict.test.mjs and waiver-match.test.mjs cover the pure logic;
 // THIS file proves the dispatch wiring around it (same pattern as
 // build-wiring.test.mjs).
@@ -21,6 +22,8 @@ const source = readFileSync(join(here, 'swarm-review.js'), 'utf8')
 const fnd = (file, line, severity, problem) =>
   ({ file: `/repo/${file}`, line, severity, dimension: 'bugs', problem, scenario: 's', fix: 'x' })
 const ok = (result, outputTokens = 50) => ({ result, outputTokens })
+const vote = (verdict, extra = {}) => ({ verdict, reason: 'r', evidence: verdict === 'inconclusive' ? '' : 'e', reproExecuted: false, observed: '', ...extra })
+const CONF = vote('confirmed')
 const lensOf = prompt => prompt.includes('through the lens of correctness') ? 'correctness'
   : prompt.includes('through the lens of reproducibility') ? 'reproducibility' : null
 
@@ -45,14 +48,17 @@ test('verdict wiring: contested-critical double-check, rejected split, minor sin
           fnd('a.js', 10, 'critical', 'buffer overflow'),
           fnd('b.js', 5, 'major', 'race condition'),
           fnd('c.js', 1, 'minor', 'confusing name'),
+          fnd('d.js', 2, 'major', 'imagined overflow'),
         ],
         areasCovered: ['src'],
       })
     }
     if (label.startsWith('verify:')) {
-      // b.js: lenses disagree -> not unanimous -> rejected; others confirm
-      if (label.includes('b.js')) return ok({ isReal: lensOf(prompt) !== 'correctness', reason: 'r' })
-      return ok({ isReal: true, reason: 'r' })
+      // b.js: lenses contradict -> inconclusive (unresolved, NOT rejected);
+      // d.js: both lenses refute with evidence -> rejected; others confirm
+      if (label.includes('b.js')) return ok(vote(lensOf(prompt) === 'correctness' ? 'refuted' : 'confirmed'))
+      if (label.includes('d.js')) return ok(vote('refuted', { evidence: 'd.js:2 guards it' }))
+      return ok(CONF)
     }
     // a.js critical: BOTH severity checks want major -> downgrade lands
     if (label.startsWith('severity:') || label.startsWith('severity2:')) {
@@ -66,8 +72,14 @@ test('verdict wiring: contested-critical double-check, rejected split, minor sin
   assert.ok(calls.some(c => c.label === 'severity2:/repo/a.js:10'), 'a critical downgrade requires the SECOND independent check')
   assert.ok(!calls.some(c => c.label.startsWith('severity:') && c.label.includes('c.js')), 'minors get no severity check')
   assert.equal(calls.filter(c => c.label === 'verify:/repo/c.js:1').length, 1, 'minor verified on a single lens under normal verify')
-  assert.deepEqual(result.rejected.map(f => [f.file, f.votes, f.lensCount]), [['/repo/b.js', 1, 2]],
-    'non-unanimous lenses reject with the vote split recorded')
+  assert.deepEqual(result.rejected.map(f => [f.file, f.votes, f.lensCount]), [['/repo/d.js', 0, 2]],
+    'only an evidenced refutation rejects')
+  assert.deepEqual(result.rejected[0].lenses.map(l => [l.lens, l.verdict, l.evidence]), [['correctness', 'refuted', 'd.js:2 guards it'], ['reproducibility', 'refuted', 'd.js:2 guards it']],
+    'lens evidence travels with the rejection')
+  assert.deepEqual(result.inconclusive.map(f => [f.file, f.severity, f.lensCount]), [['/repo/b.js', 'major', 2]],
+    'contradicting lenses leave a major UNRESOLVED instead of silently rejecting it')
+  assert.deepEqual(result.inconclusive[0].lenses.map(l => l.verdict).sort(), ['confirmed', 'refuted'])
+  assert.equal(result.inconclusiveMinors, 0)
   assert.equal(result.verifyFailed.length, 0)
   assert.equal(result.waived.length, 0)
 })
@@ -87,7 +99,7 @@ test('waiver wiring: non-critical skips verify; a critical waiver attempt verifi
         areasCovered: ['src'],
       })
     }
-    if (label.startsWith('verify:')) return ok({ isReal: true, reason: 'r' })
+    if (label.startsWith('verify:')) return ok(CONF)
     if (label.startsWith('severity:')) return ok({ honest: true, adjustedSeverity: 'critical', reason: 'r' })
     throw new Error(`unexpected label: ${label}`)
   })
@@ -113,7 +125,7 @@ test('infra wiring: failed lens retries once then is excluded; all-lenses-dead l
     if (label.startsWith('verify:')) {
       if (label.includes('h.js')) return ok(null, 0) // every lens dead
       if (lensOf(prompt) === 'correctness') return ok(null, 0) // g.js: one lens dead
-      return ok({ isReal: true, reason: 'r' })
+      return ok(CONF)
     }
     if (label.startsWith('severity:')) return ok({ honest: true, adjustedSeverity: 'major', reason: 'r' })
     throw new Error(`unexpected label: ${label}`)
@@ -135,7 +147,7 @@ test('thorough wiring: a round with nothing new stops the loop; strict widens th
       // every round reports the SAME finding — round 2 dedups to zero fresh and stops
       return ok({ findings: [fnd('c.js', 1, 'minor', 'confusing name')], areasCovered: ['src'] })
     }
-    if (label.startsWith('verify:')) return ok({ isReal: true, reason: 'r' })
+    if (label.startsWith('verify:')) return ok(CONF)
     throw new Error(`unexpected label: ${label}`)
   })
   assert.ok(calls.some(c => c.label === 'find:bugs:r1'), 'round 1 ran')
@@ -143,4 +155,95 @@ test('thorough wiring: a round with nothing new stops the loop; strict widens th
   assert.ok(!calls.some(c => c.label === 'find:bugs:r3'), 'no round 3 after a zero-fresh round')
   assert.equal(result.confirmed.length, 1, 'duplicate finding confirmed once')
   assert.equal(calls.filter(c => c.label === 'verify:/repo/c.js:1').length, 2, 'strict verify runs the FULL lens set even on a minor')
+})
+
+test('inconclusive wiring: an uncertain lens leaves a critical unresolved; an uncertain minor is dropped and counted', async () => {
+  const { result } = await run({}, (prompt, label) => {
+    if (label.startsWith('find:')) {
+      return ok({
+        findings: [fnd('k.js', 4, 'critical', 'token check skipped'), fnd('m.js', 8, 'minor', 'odd rounding')],
+        areasCovered: ['src'],
+      })
+    }
+    // k.js: correctness confirms, reproducibility cannot build the input; m.js: the one minor lens cannot decide
+    if (label.startsWith('verify:')) return ok(lensOf(prompt) === 'correctness' && label.includes('k.js') ? CONF : vote('inconclusive'))
+    throw new Error(`unexpected label: ${label}`)
+  })
+  assert.deepEqual(result.inconclusive.map(f => [f.file, f.severity]), [['/repo/k.js', 'critical']],
+    'an uncertain lens must never silently discard a critical — it stays visible as unresolved')
+  assert.equal(result.rejected.length, 0, '"cannot confirm" is not "refuted"')
+  assert.equal(result.confirmed.length, 0)
+  assert.equal(result.inconclusiveMinors, 1, 'the uncertain minor is counted, not listed')
+})
+
+test('exec wiring: execRepro puts the EXECUTE clause on bugs lenses only; an unexecuted verdict counts as inconclusive', async () => {
+  const sec = { ...fnd('s.js', 3, 'major', 'open redirect'), dimension: 'security' }
+  const { calls, result } = await run({ execRepro: true, dimensions: ['bugs', 'security'] }, (prompt, label) => {
+    if (label.startsWith('find:bugs')) {
+      return ok({ findings: [fnd('e.js', 1, 'major', 'tail drops the last element'), fnd('f.js', 2, 'major', 'empty array crashes')], areasCovered: ['src'] })
+    }
+    if (label.startsWith('find:security')) return ok({ findings: [sec], areasCovered: ['src'] })
+    if (label.startsWith('verify:')) {
+      // e.js: the lenses READ and refute — no run, so under the exec regime that is not a refutation
+      if (label.includes('e.js')) return ok(vote('refuted'))
+      // f.js: the lenses ran the repro and saw the crash
+      if (label.includes('f.js')) return ok(vote('confirmed', { reproExecuted: true, observed: 'TypeError: Reduce of empty array' }))
+      return ok(CONF) // s.js: security finding, read-only rules apply
+    }
+    if (label.startsWith('severity:')) return ok({ honest: true, adjustedSeverity: 'major', reason: 'r' })
+    throw new Error(`unexpected label: ${label}`)
+  })
+  const verifyPrompts = file => calls.filter(c => c.label.startsWith(`verify:/repo/${file}`)).map(c => c.prompt)
+  assert.ok(verifyPrompts('e.js').every(p => p.includes('EXECUTE the repro')), 'bugs lenses get the execute clause')
+  assert.ok(verifyPrompts('s.js').every(p => !p.includes('EXECUTE the repro') && p.includes('Do not execute repo code')), 'non-bugs lenses stay read-only')
+  assert.deepEqual(result.inconclusive.map(f => f.file), ['/repo/e.js'], 'a read-only refutation is not enough under execRepro')
+  assert.equal(result.inconclusive[0].lenses[0].stated, 'refuted', 'the lens\'s own claim is kept for the director')
+  assert.deepEqual(result.confirmed.map(f => f.file).sort(), ['/repo/f.js', '/repo/s.js'])
+  const f = result.confirmed.find(x => x.file === '/repo/f.js')
+  assert.equal(f.lenses[0].reproExecuted, true)
+  assert.match(f.lenses[0].observed, /Reduce of empty array/)
+})
+
+test('default wiring: without execRepro every lens is told not to execute repo code', async () => {
+  const { calls } = await run({}, (prompt, label) => {
+    if (label.startsWith('find:')) return ok({ findings: [fnd('a.js', 1, 'major', 'x')], areasCovered: ['src'] })
+    if (label.startsWith('verify:')) return ok(CONF)
+    if (label.startsWith('severity:')) return ok({ honest: true, adjustedSeverity: 'major', reason: 'r' })
+    throw new Error(`unexpected label: ${label}`)
+  })
+  const lensPrompts = calls.filter(c => c.label.startsWith('verify:')).map(c => c.prompt)
+  assert.ok(lensPrompts.length && lensPrompts.every(p => p.includes('Do not execute repo code') && !p.includes('EXECUTE the repro')))
+})
+
+test('graded wiring: a killed false positive shows up only in the baseline', async () => {
+  const { result } = await run({ rigor: 'lite', expected: [{ file: 'grid.js', mustMatch: 'share' }] }, (prompt, label) => {
+    if (label.startsWith('find:')) {
+      return ok({
+        findings: [fnd('grid.js', 5, 'major', 'fill shares one row array'), fnd('guards.js', 6, 'major', 'off-by-one in tail')],
+        areasCovered: ['src'],
+      })
+    }
+    if (label.startsWith('verify:')) return ok(label.includes('guards.js') ? vote('refuted', { evidence: 'tail([1,2,3],2) → [2,3]' }) : CONF)
+    throw new Error(`unexpected label: ${label}`)
+  })
+  assert.equal(result.pass, true)
+  assert.deepEqual(result.missed, [])
+  assert.deepEqual(result.unexpected, [], 'the verified pass has no false positive')
+  assert.deepEqual(result.baseline.unexpected.map(f => f.file), ['/repo/guards.js'], 'the raw finder output had one')
+  assert.equal(result.raw.length, 2)
+  assert.ok(result.raw.every(f => !('_runtime' in f)), 'internal fields stay out of raw')
+})
+
+test('graded wiring: an inconclusive false positive is reported as unresolved, not as killed', async () => {
+  const { result } = await run({ rigor: 'lite', expected: [{ file: 'grid.js', mustMatch: 'share' }] }, (prompt, label) => {
+    if (label.startsWith('find:')) {
+      return ok({ findings: [fnd('grid.js', 5, 'major', 'fill shares one row array'), fnd('guards.js', 6, 'major', 'off-by-one in tail')], areasCovered: ['src'] })
+    }
+    if (label.startsWith('verify:')) return ok(label.includes('guards.js') ? vote('inconclusive') : CONF)
+    throw new Error(`unexpected label: ${label}`)
+  })
+  assert.deepEqual(result.unexpected, [])
+  assert.deepEqual(result.unexpectedInconclusive.map(f => f.file), ['/repo/guards.js'])
+  assert.deepEqual(result.missedInconclusive, [])
+  assert.deepEqual(result.inconclusive.map(f => f.file), ['/repo/guards.js'])
 })

@@ -172,6 +172,13 @@ const DOCUMENTED_WRITES = [
     inventory: 'auth header',
   },
   {
+    // prose-directed and opt-in (execRepro): the lens prompt confines it to the OS temp dir
+    what: 'verify-lens repro scratch file (execRepro only), OS temp dir',
+    token: 'a scratch file under the OS temp directory',
+    sources: ['workflows/swarm-review.js'],
+    inventory: 'repro scratch',
+  },
+  {
     what: 'build retrospect report, written into the TARGET repo',
     token: 'swarm-retrospect-',
     sources: ['skills/swarm-director/SKILL.md'],
@@ -204,7 +211,7 @@ for (const w of DOCUMENTED_WRITES) {
 // A write with no entry here is invisible to this gate — that is the known
 // limit, and the reason CONTRIBUTING makes it a review item.
 test('B: the inventory covers every documented write group', () => {
-  assert.equal(DOCUMENTED_WRITES.length, 8,
+  assert.equal(DOCUMENTED_WRITES.length, 9,
     'adding a write means adding an entry here AND to docs/security.md; ' +
     'bump this count deliberately so the addition cannot be a silent one.')
 })

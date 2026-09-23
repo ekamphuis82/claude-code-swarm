@@ -16,7 +16,9 @@
 //    "confirmed":5,"raw":5,"outputTokens":13000}
 // Optional run conditions (stored when present, validated loud):
 //   "workflow":"smoke"|"review", "rigor":"lite"|"full", "verify":"normal"|"strict",
-//   "finderModel", "verifyModel", "notes" (strings)
+//   "finderModel", "verifyModel", "notes" (strings),
+//   "missedInconclusive", "unexpectedInconclusive" (numbers — planted bugs and
+//   false positives verify left unresolved: neither wrongly rejected nor killed)
 // Any other field is an error — a typo'd condition must never vanish silently;
 // every condition but notes requires workflow (else the row bins as unlabelled).
 // lastSmokeVersion moves only on a passing SMOKE row (workflow absent or smoke):
@@ -50,6 +52,7 @@ const REQUIRED = {
 const OPTIONAL = {
   workflow: ['smoke', 'review'], rigor: ['lite', 'full'], verify: ['normal', 'strict'],
   finderModel: 'string', verifyModel: 'string', notes: 'string',
+  missedInconclusive: 'number', unexpectedInconclusive: 'number',
 }
 // a run-condition note, not a findings dump (security.md: no findings text in the log)
 const NOTES_MAX = 300
@@ -79,14 +82,15 @@ function recordVersion (version) {
   return 'updated'
 }
 
-// per run: falsePositivesKilled = baselineUnexpected - unexpected;
-// realBugsWronglyRejected = missed - baselineMissed. No clamping — honest either way.
+// per run: falsePositivesKilled = baselineUnexpected - unexpected - unexpectedInconclusive;
+// realBugsWronglyRejected = missed - baselineMissed - missedInconclusive (an
+// unresolved finding is neither: it is summed under unresolved). No clamping.
 // byMode splits the same sums per workflow/rigor; rows logged before those
 // fields existed land under "unlabelled" rather than being guessed.
 function totals () {
   let lines = []
   try { lines = fs.readFileSync(logPath, 'utf8').split('\n').filter(Boolean) } catch { /* no log yet */ }
-  const blank = () => ({ runs: 0, falsePositivesKilled: 0, realBugsWronglyRejected: 0 })
+  const blank = () => ({ runs: 0, falsePositivesKilled: 0, realBugsWronglyRejected: 0, unresolvedFalsePositives: 0, unresolvedRealBugs: 0 })
   const t = blank()
   const byMode = {}
   for (const line of lines) {
@@ -95,8 +99,12 @@ function totals () {
     const mode = r.workflow ? `${r.workflow}${r.rigor ? '/' + r.rigor : ''}` : 'unlabelled'
     for (const acc of [t, byMode[mode] ??= blank()]) {
       acc.runs++
-      acc.falsePositivesKilled += (Number(r.baselineUnexpected) || 0) - (Number(r.unexpected) || 0)
-      acc.realBugsWronglyRejected += (Number(r.missed) || 0) - (Number(r.baselineMissed) || 0)
+      const fpOpen = Number(r.unexpectedInconclusive) || 0
+      const bugOpen = Number(r.missedInconclusive) || 0
+      acc.falsePositivesKilled += (Number(r.baselineUnexpected) || 0) - (Number(r.unexpected) || 0) - fpOpen
+      acc.realBugsWronglyRejected += (Number(r.missed) || 0) - (Number(r.baselineMissed) || 0) - bugOpen
+      acc.unresolvedFalsePositives += fpOpen
+      acc.unresolvedRealBugs += bugOpen
     }
   }
   return { ...t, byMode }

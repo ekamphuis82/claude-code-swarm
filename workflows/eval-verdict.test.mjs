@@ -1,6 +1,7 @@
 // Tests the pure pass-grading block in swarm-smoke.js by extracting the code
 // between the <eval-verdict> markers verbatim and evaluating it with injected
-// `expected` and `confirmed` — so the PRODUCTION code is what runs.
+// `expected`, `confirmed`, `raw` and `unresolved` — so the PRODUCTION code is
+// what runs (swarm-review.js carries a byte-identical copy, dimension-sync.test.mjs).
 // Run: node --test workflows/eval-verdict.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -13,8 +14,8 @@ const src = readFileSync(join(dir, 'swarm-smoke.js'), 'utf8')
 const m = src.match(/\/\/ <eval-verdict>[^\n]*\n([\s\S]*?)\/\/ <\/eval-verdict>/)
 assert.ok(m, 'eval-verdict markers present in swarm-smoke.js')
 
-const grade = (expected, confirmed, raw = []) =>
-  new Function('expected', 'confirmed', 'raw', m[1] + '\nreturn { missed, unexpected, pass, baseline }')(expected, confirmed, raw)
+const grade = (expected, confirmed, raw = [], unresolved = []) =>
+  new Function('expected', 'confirmed', 'raw', 'unresolved', m[1] + '\nreturn { missed, unexpected, pass, baseline, missedInconclusive, unexpectedInconclusive }')(expected, confirmed, raw, unresolved)
 
 test('legacy mode (no expected): passes on a confirmed calc finding', () => {
   const r = grade(null, [{ file: '/fx/calc.js', problem: 'off by one' }])
@@ -100,4 +101,29 @@ test('baseline: shows a real bug the verify layer wrongly rejected', () => {
   assert.equal(r.pass, false)
   assert.deepEqual(r.missed.map(e => e.file), ['dates.js'], 'verified pass missed it')
   assert.deepEqual(r.baseline.missed, [], 'the raw finder had found it — verify rejected a real bug')
+})
+
+test('inconclusive: an unresolved false positive is neither unexpected nor killed — it is counted apart', () => {
+  const fp = { file: '/fx/guards.js', problem: 'off-by-one in tail' }
+  const bug = { file: '/fx/grid.js', problem: 'fill shares one row' }
+  const r = grade([{ file: 'grid.js' }], [bug], [bug, fp], [fp])
+  assert.deepEqual(r.unexpected, [])
+  assert.deepEqual(r.baseline.unexpected.map(c => c.file), ['/fx/guards.js'])
+  assert.deepEqual(r.unexpectedInconclusive.map(c => c.file), ['/fx/guards.js'],
+    'baseline.unexpected - unexpected - unexpectedInconclusive = 0 killed, not 1')
+})
+
+test('inconclusive: an unresolved planted bug still fails the run but is counted apart from wrongly rejected', () => {
+  const bug = { file: '/fx/tags.js', problem: 'Set has no length' }
+  const r = grade([{ file: 'tags.js' }], [], [bug], [bug])
+  assert.equal(r.pass, false, 'only a confirmed planted bug passes')
+  assert.deepEqual(r.missed.map(e => e.file), ['tags.js'])
+  assert.deepEqual(r.missedInconclusive.map(e => e.file), ['tags.js'],
+    'missed - baselineMissed - missedInconclusive = 0 wrongly rejected, not 1')
+})
+
+test('inconclusive: empty outside graded mode', () => {
+  const r = grade(null, [], [], [{ file: '/fx/a.js', problem: 'x' }])
+  assert.deepEqual(r.missedInconclusive, [])
+  assert.deepEqual(r.unexpectedInconclusive, [])
 })

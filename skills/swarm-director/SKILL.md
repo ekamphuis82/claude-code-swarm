@@ -223,7 +223,9 @@ an approved plan exists:
    (no codeswarm: prefix) and say so in the fit line; the scripts append
    the quiet directive to every agent prompt, so the quiet invariant holds
    for foreign agents too. `brief` = everything the implementer needs
-   (plan-task text, file paths, interfaces) — they see nothing else.
+   (plan-task text, file paths, interfaces) — they see nothing else. Give
+   each task its `files` from the plan's per-task file list; tasks you
+   co-stage for parallelism MUST carry it (see REVIEW → FIX grouping rules).
 2. Run `swarm-build.js` with `{repo, tasks, planPath}` plus `topModel`,
    `rigor`, `retrospect` per the config.
 3. Read the per-task verdicts. There is no second reviewer pass, so a task
@@ -265,7 +267,15 @@ what the verify layer could not establish:
 - Provably file-disjoint groups may share a `stage` value to run in
   parallel — only CONSECUTIVE same-stage tasks are grouped, so order them
   adjacently; when overlap is not provable, leave `stage` unset
-  (sequential).
+  (sequential). Every co-staged task declares its `files`: the script
+  checks the declarations for overlap and runs an undeclared or
+  overlapping stage sequentially — the mechanical half of "file-disjoint".
+  The other half is yours: two tasks that touch different files but share
+  an API (one changes a signature the other calls) are NOT disjoint, and no
+  declaration can show it.
+- After the build, a non-empty `stageOverlap` or `undeclaredWrites` means
+  the parallel assumption did not hold for that stage: name it in the
+  report and have the re-test / retrospect results read with that in mind.
 - Each `brief` carries the FULL finding texts for its group (or the path to
   a findings file on disk) plus concrete fix guidance — a one-line summary
   is not enough.
@@ -448,7 +458,7 @@ still pass real JSON objects.
 <!-- <args-table> (machine-checked by prose-sync.test.mjs: one row per workflow script; required args must match the script's own validation throws — keep rows parseable) -->
 | Script | Required args | Optional args |
 |---|---|---|
-| `swarm-build.js` | `repo`, `tasks [{id,title,agentType,brief}]` (`agentType` plugin-qualified — see FEATURE step 1) | `planPath`, `quiet`, `topModel`, `rigor` (pass only when `full` — see Cost model), `retrospect` (full/light/off; applies under full rigor only), per-task `stage` (consecutive tasks sharing a stage run in parallel — only for provably file-disjoint tasks; unset = sequential), per-task `effort` (`low` for mechanical tasks — ALSO skips that task's adversarial review, tester-only; omit to inherit the session effort; `high` for genuinely hard ones) |
+| `swarm-build.js` | `repo`, `tasks [{id,title,agentType,brief}]` (`agentType` plugin-qualified — see FEATURE step 1) | `planPath`, `quiet`, `topModel`, `rigor` (pass only when `full` — see Cost model), `retrospect` (full/light/off; applies under full rigor only), per-task `stage` (consecutive tasks sharing a stage run in parallel — only for provably file-disjoint tasks; unset = sequential), per-task `files` (the paths the task may touch; an entry ending in `/` covers that directory — REQUIRED for parallelism: a co-staged task without `files`, or two co-staged tasks whose `files` overlap, runs sequentially with a log line; the result reports `stageOverlap` / `undeclaredWrites` when a parallel stage's self-reported `filesChanged` collide or leave the declaration), per-task `effort` (`low` for mechanical tasks — ALSO skips that task's adversarial review, tester-only; omit to inherit the session effort; `high` for genuinely hard ones) |
 | `swarm-review.js` | `repo` | `target`, `dimensions` (bugs, security, wcag, performance, conventions, architecture, test-coverage — the last is opt-in, never in the default set; its finder is the tester agent), `a11yLevel` (off/A/AA/AAA, default AA; off drops wcag from the default set), `rigor` (see Cost model), `verify` (normal/strict — full rigor only), `thorough`, `quiet`, `topModel`, `sinceRef`, `waivers`, `execRepro` (see `--exec-repro`), `expected [{file, mustMatch?}]` (graded mode on an eval fixture — same contract and result keys as `swarm-smoke.js`: `pass`, `missed`, `unexpected`, `baseline`, `raw`; log it via `tools/record-eval.js` like any graded run) |
 | `swarm-refactor.js` | `repo`, `instruction` | `scope`, `quiet` |
 | `swarm-research.js` | `question` | `repo`, `angles[]`, `quiet`, `topModel` |

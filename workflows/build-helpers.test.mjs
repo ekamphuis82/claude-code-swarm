@@ -1,8 +1,9 @@
 // Tests the pure build-helpers block in swarm-build.js by extracting the code
 // between the <build-helpers> markers verbatim and evaluating it — so the
 // PRODUCTION code is what runs (same pattern as waiver-match.test.mjs).
-// These helpers carry the fix-round gate, the impl/fix merge and the stage
-// grouping — the subtlest logic in the build script.
+// These helpers carry the fix-round gate, the impl/fix merge, the stage
+// grouping and the pre-/post-hoc parallelism guards — the subtlest logic in
+// the build script.
 // Run: node --test workflows/build-helpers.test.mjs
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
@@ -14,8 +15,8 @@ const src = readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'swarm-bu
 const m = src.match(/\/\/ <build-helpers>[^\n]*\n([\s\S]*?)\/\/ <\/build-helpers>/)
 assert.ok(m, 'build-helpers markers present in swarm-build.js')
 
-const { needsFixRound, fixFindings, mergeImpl, groupStages } = new Function(
-  m[1] + '\nreturn { needsFixRound, fixFindings, mergeImpl, groupStages }'
+const { needsFixRound, fixFindings, mergeImpl, groupStages, fileKey, covers, guardStage, stageOverlap, undeclaredWrites } = new Function(
+  m[1] + '\nreturn { needsFixRound, fixFindings, mergeImpl, groupStages, fileKey, covers, guardStage, stageOverlap, undeclaredWrites }'
 )()
 
 // --- needsFixRound: FAIL suite must be fixed even when review approved/skipped
@@ -84,4 +85,64 @@ test('stage 0 is a valid stage (only null/undefined mean sequential)', () => {
   const gs = groupStages([{ id: 1, stage: 0 }, { id: 2, stage: 0 }])
   assert.equal(gs.length, 1)
   assert.deepEqual(gs[0].tasks.map(t => t.id), [1, 2])
+})
+
+// --- fileKey: one key per file, however the path is spelled
+test('fileKey: absolute, relative, ./ and backslash spellings of one file collide', () => {
+  const keys = ['/repo/src/a.js', 'src/a.js', './src/a.js', '\\repo\\src\\a.js'].map(p => fileKey('/repo', p, false))
+  assert.deepEqual(new Set(keys), new Set(['src/a.js']))
+})
+test('fileKey: case folds only when told to (case-insensitive FS)', () => {
+  assert.equal(fileKey('C:/Repo', 'C:/Repo/Src/A.js', true), 'src/a.js')
+  assert.equal(fileKey('/repo', 'Src/A.js', false), 'Src/A.js')
+})
+
+// --- guardStage: pre-hoc, fail-safe (no declaration = no parallelism)
+const stage = tasks => ({ key: 's', tasks })
+test('guardStage: disjoint declarations keep the stage parallel', () => {
+  const st = stage([{ id: 1, files: ['a.js'] }, { id: 2, files: ['b.js'] }])
+  const { stages, reason } = guardStage(st, '/repo', false)
+  assert.equal(reason, null)
+  assert.deepEqual(stages, [st])
+})
+test('guardStage: a co-staged task WITHOUT files splits the stage into sequential singles', () => {
+  const { stages, reason } = guardStage(stage([{ id: 1, files: ['a.js'] }, { id: 2 }]), '/repo', false)
+  assert.deepEqual(stages.map(s => s.tasks.map(t => t.id)), [[1], [2]])
+  assert.match(reason, /2 declare no files/)
+})
+test('guardStage: overlapping declarations split the stage, spelled differently or not', () => {
+  const { stages, reason } = guardStage(stage([{ id: 1, files: ['src/a.js'] }, { id: 2, files: ['/repo/src/a.js', 'b.js'] }]), '/repo', false)
+  assert.equal(stages.length, 2)
+  assert.match(reason, /src\/a\.js \(1 \+ 2\)/)
+})
+test('guardStage: a directory entry (trailing /) clashes with any file under it', () => {
+  const { stages, reason } = guardStage(stage([{ id: 1, files: ['src/api/'] }, { id: 2, files: ['src/api/users.js'] }]), '/repo', false)
+  assert.equal(stages.length, 2)
+  assert.match(reason, /src\/api\/ ~ src\/api\/users\.js \(1 \+ 2\)/)
+  assert.equal(guardStage(stage([{ id: 1, files: ['src/api/'] }, { id: 2, files: ['src/apix.js'] }]), '/repo', false).reason, null, 'prefix is per directory, not per string')
+})
+test('guardStage: singles pass untouched, declared or not', () => {
+  const st = stage([{ id: 1 }])
+  assert.deepEqual(guardStage(st, '/repo', false), { stages: [st], reason: null })
+})
+
+// --- stageOverlap / undeclaredWrites: post-hoc, report-only
+test('stageOverlap: a file two co-staged tasks both report is flagged with both task ids', () => {
+  const rs = [
+    { task: 'T1', implemented: { filesChanged: ['/repo/a.js', 'x.js'] } },
+    { task: 'T2', implemented: { filesChanged: ['a.js'] } },
+    { task: 'T3', implemented: null, error: 'implementer returned null' },
+  ]
+  assert.deepEqual(stageOverlap('s', rs, '/repo', false), [{ stage: 's', file: 'a.js', tasks: ['T1', 'T2'] }])
+})
+test('stageOverlap: disjoint reports = no overlap', () => {
+  assert.deepEqual(stageOverlap('s', [{ task: 1, implemented: { filesChanged: ['a.js'] } }, { task: 2, implemented: { filesChanged: ['b.js'] } }], '/repo', false), [])
+})
+test('undeclaredWrites: a directory declaration covers the files under it', () => {
+  assert.deepEqual(undeclaredWrites({ files: ['src/api/'] }, { implemented: { filesChanged: ['src/api/a.js', 'src/b.js'] } }, '/repo', false), ['src/b.js'])
+})
+test('undeclaredWrites: files reported outside the declaration; nothing for undeclared tasks', () => {
+  assert.deepEqual(undeclaredWrites({ files: ['a.js'] }, { implemented: { filesChanged: ['/repo/a.js', 'shared.js'] } }, '/repo', false), ['shared.js'])
+  assert.deepEqual(undeclaredWrites({}, { implemented: { filesChanged: ['z.js'] } }, '/repo', false), [])
+  assert.deepEqual(undeclaredWrites({ files: ['a.js'] }, { implemented: null }, '/repo', false), [])
 })

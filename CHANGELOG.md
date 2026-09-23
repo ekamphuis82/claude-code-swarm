@@ -12,6 +12,67 @@ previous bump, plus the bump itself — and the `v<version>` tag sits on that
 bump commit. Tags for 1.0.0 through 1.3.0 were created retroactively on
 2026-08-17, when this changelog was written.
 
+## [1.5.0] — 2026-09-23
+
+### Changed
+
+- **Verify verdicts are three-state: `confirmed`, `refuted`, `inconclusive`.**
+  The binary `isReal` verdict, with its "default to false if you cannot
+  confirm it" rule, folded "cannot confirm" into "refuted": one uncertain
+  lens silently discarded a real critical, indistinguishable from a false
+  positive. A lens now refutes only with counter-evidence (the input tried
+  and the behaviour observed, or the file:line that rules the claim out); a
+  finding is confirmed when every lens confirms, refuted when every lens
+  refutes, and inconclusive otherwise — symmetric, so one lens alone can
+  neither keep nor kill a finding another lens could not settle. Inconclusive
+  critical/major findings land in a new `inconclusive` bucket — unresolved,
+  a critical there blocks merge — and inconclusive minors are dropped and
+  counted (`inconclusiveMinors`). Every bucket carries the per-lens evidence.
+  `swarm-smoke.js` uses the same three states. Lens prompts also tell the
+  verifier to check a finding's own stated repro — the one false positive
+  that survived the 2026-08-17 `eval3` run had a repro that did not
+  reproduce.
+- **Co-staged build tasks need a `files` declaration to run in parallel.**
+  A co-staged task without `files`, or two whose `files` overlap, now runs
+  sequentially with a log line (fail-safe: no declaration, no parallelism);
+  the declaration is also stated in the implementer's brief. After each
+  parallel stage the result reports `stageOverlap` and `undeclaredWrites`
+  from the implementers' own `filesChanged`. Shared API dependencies stay a
+  director judgment.
+
+### Added
+
+- **`execRepro` (`--exec-repro`) for `swarm-review.js`.** Opt-in: verify
+  lenses on `bugs` findings must run the finding's repro (a one-liner or an
+  OS-temp scratch file, never inside the repo), and a verdict without an
+  executed repro (one that left output) counts as inconclusive — so it also
+  switches off read-only confirmations and kills for bugs findings. It runs
+  repo code, so it is for trusted repos only — see `docs/security.md` "Repro
+  execution". Without it, verify lenses are told not to execute repo code;
+  finders are not restricted, and the security doc now says so.
+- **Graded mode for `swarm-review.js`** (`expected`, same contract as
+  `swarm-smoke.js`): the review tier — the only one that can measure the
+  verify delta — no longer has to be graded by hand.
+- **Run conditions in the eval log.** `tools/record-eval.js` accepts and
+  validates `workflow`, `rigor`, `verify`, `finderModel`, `verifyModel`,
+  `missedInconclusive`, `unexpectedInconclusive` and `notes` (conditions
+  need `workflow`), rejects unknown fields, stamps `host` and
+  `pluginVersion`, normalizes the fixture path, and splits its running
+  totals per workflow/rigor (`byMode`; older rows land under `unlabelled`).
+  An unresolved finding counts as neither a false positive killed nor a real
+  bug wrongly rejected — graded mode reports `missedInconclusive` /
+  `unexpectedInconclusive` so the A/B metric cannot book it as either.
+  `lastSmokeVersion` now moves only on a passing smoke row, never on a
+  review-tier graded run.
+
+### Fixed
+
+- **README and CLAUDE.md name whose log holds the 2026-08-17 delta.** The
+  eval log is per config dir, so per machine; the run is in the
+  maintainer's log under the fixture label `fixtures/eval3-bait-review`. A
+  check on another machine had concluded it was never recorded.
+- `tools/record-eval.test.mjs` removes its temp config dirs.
+
 ## [1.4.1] — 2026-08-17
 
 ### Added

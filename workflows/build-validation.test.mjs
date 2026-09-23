@@ -97,3 +97,10 @@ test('effort:low skips review even under full rigor', async () => {
   await run([{ ...okTask, effort: 'low' }], { rigor: 'full' }, labels)
   assert.ok(!labels.some(l => l.startsWith('review:')), `effort:low skips review, got: ${labels}`)
 })
+
+test('files, when given, must be a non-empty array of path strings', async () => {
+  await assert.doesNotReject(() => run([{ ...okTask, files: ['src/a.js'] }]))
+  await assert.rejects(() => run([{ ...okTask, files: [] }]), /files must be a non-empty array/)
+  await assert.rejects(() => run([{ ...okTask, files: 'src/a.js' }]), /files must be a non-empty array/)
+  await assert.rejects(() => run([{ ...okTask, files: ['a.js', ''] }]), /files must be a non-empty array/)
+})

@@ -50,7 +50,9 @@ stack. If anything misbehaves, run `/codeswarm:swarm doctor`.
 What the design gives you:
 
 - **Parallel where safe, sequential where it must be** (stage-aware build
-  pipeline; only provably file-disjoint tasks run concurrently)
+  pipeline; co-staged tasks run concurrently only when each declares its
+  files and no two declarations overlap, and a stage whose tasks still
+  collide is reported afterwards)
 - **Independently verified findings** (every confirmed finding passed an
   existence check plus a severity gate; a finding the checks can neither
   confirm nor refute is reported as unresolved instead of silently dropped)

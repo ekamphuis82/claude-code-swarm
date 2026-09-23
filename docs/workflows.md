@@ -28,10 +28,16 @@ tasks skip the Review stage even under full rigor (tester-only gate).
 | `rigor` | no | `lite` (DEFAULT): implement + one independent test per task, no adversarial review, no retrospect (~1.5–2x raw). `full`: adds the adversarial review + retrospect (~3–4x). `--thorough`/`--rigor=full` sets full |
 | `retrospect` | no | `full` (default) / `light` / `off` — only applies under `rigor: 'full'` |
 | per-task `stage` | no | consecutive tasks sharing a stage run in parallel — only for provably file-disjoint tasks |
+| per-task `files` | for parallelism | paths the task may touch; an entry ending in `/` covers that directory (stated in the brief of a task that runs in parallel). A co-staged task without `files`, or co-staged tasks with overlapping `files`, runs sequentially (logged) — no declaration, no parallelism. Shared API dependencies between tasks are not mechanically checkable and stay a director judgment |
 | per-task `effort` | no | `low` mechanical (also skips the adversarial review — tester-only gate, since there is nothing to review in a rename or a schema-field add) / omit to inherit / `high` hard |
 
 Output: per-task verdicts (test output quoted verbatim, reviewer verdict,
-fix-round result) + retrospect findings (never auto-fixed). Cost: ~3 agents
+fix-round result) + retrospect findings (never auto-fixed) + two post-hoc
+parallelism reports: `stageOverlap` (`[{stage, file, tasks}]` — a file more
+than one task of the same parallel stage reported changing) and
+`undeclaredWrites` (`[{stage, task, files}]` — files a parallel task
+reported outside its `files`). Both rest on the implementers' own
+`filesChanged`, so they catch declared collisions, not silent ones. Cost: ~3 agents
 per task (implementer, tester, reviewer), +2 per fix round (fix, re-test),
 +1 retrospect per build.
 

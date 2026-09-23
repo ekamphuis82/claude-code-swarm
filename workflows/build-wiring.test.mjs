@@ -23,10 +23,11 @@ const source = readFileSync(join(here, 'swarm-build.js'), 'utf8')
 // maxActive then measures real stage parallelism.
 function makeDriver (calls, { retestVerdict }) {
   let active = 0
-  const state = { maxActive: 0 }
+  const state = { maxActive: 0, prompts: [] }
   const driver = async (prompt, opts) => {
     const label = opts.label ?? ''
     calls.push(label)
+    state.prompts.push({ label, prompt: String(prompt) })
     active++
     state.maxActive = Math.max(state.maxActive, active)
     await new Promise(r => setImmediate(r))
@@ -54,15 +55,15 @@ async function run (tasks, opts) {
   const { result } = await runScript(source, { repo: '/repo', rigor: 'full', tasks }, harness)
   // vm-context values carry cross-realm prototypes — deepStrictEqual would
   // fail on identical content; normalize through JSON before asserting
-  return { calls, state, result: JSON.parse(JSON.stringify(result)) }
+  return { calls, state, prompts: state.prompts, result: JSON.parse(JSON.stringify(result)) }
 }
 
 test('fix round wiring: merge, supersede, re-test, retrospect; same-stage tasks overlap', async () => {
   const tasks = [
-    { id: 'T1', title: 't1', brief: 'b1', agentType: 'codeswarm:x', stage: 's' },
-    { id: 'T2', title: 't2', brief: 'b2', agentType: 'codeswarm:x', stage: 's' },
+    { id: 'T1', title: 't1', brief: 'b1', agentType: 'codeswarm:x', stage: 's', files: ['src/t1.js'] },
+    { id: 'T2', title: 't2', brief: 'b2', agentType: 'codeswarm:x', stage: 's', files: ['src/t2.js'] },
   ]
-  const { calls, state, result } = await run(tasks, { retestVerdict: 'PASS' })
+  const { calls, state, result, prompts } = await run(tasks, { retestVerdict: 'PASS' })
   for (const id of ['T1', 'T2']) {
     const r = result.results.find(x => x.task === id)
     assert.deepEqual(r.implemented.filesChanged, ['a.js', 'b.js'], `${id}: mergeImpl files union`)
@@ -81,6 +82,14 @@ test('fix round wiring: merge, supersede, re-test, retrospect; same-stage tasks 
   assert.ok(calls.includes('retrospect'), 'retrospect runs over 2 delivered tasks')
   assert.equal(result.retrospect.coherent, true)
   assert.ok(state.maxActive >= 2, `same-stage tasks must overlap (maxActive ${state.maxActive})`)
+  assert.ok(prompts.filter(p => p.label.startsWith('impl:')).every(p => p.prompt.includes('IN PARALLEL') && p.prompt.includes('src/t')), 'parallel implementers get their declared files')
+  // the driver has BOTH tasks report a.js + b.js although each declared its own file:
+  // the post-hoc guard must surface both violations
+  assert.deepEqual(result.stageOverlap, [
+    { stage: 's', file: 'a.js', tasks: ['T1', 'T2'] },
+    { stage: 's', file: 'b.js', tasks: ['T1', 'T2'] },
+  ])
+  assert.deepEqual(result.undeclaredWrites.map(u => [u.task, u.files]), [['T1', ['a.js', 'b.js']], ['T2', ['a.js', 'b.js']]])
 })
 
 test('persistent tester FAIL is fatal: sequential successor never dispatched, retrospect skipped', async () => {
@@ -93,4 +102,25 @@ test('persistent tester FAIL is fatal: sequential successor never dispatched, re
   assert.equal(result.results[0].testerReport.verdict, 'FAIL')
   assert.ok(!calls.some(c => c.endsWith(':T2')), 'T2 never dispatched after fatal T1')
   assert.equal(result.retrospect, null, 'retrospect skipped below 2 delivered tasks')
+})
+
+test('pre-hoc guard: co-staged tasks without a files declaration run sequentially', async () => {
+  const tasks = [
+    { id: 'T1', title: 't1', brief: 'b1', agentType: 'codeswarm:x', stage: 's' },
+    { id: 'T2', title: 't2', brief: 'b2', agentType: 'codeswarm:x', stage: 's' },
+  ]
+  const { state, result, prompts } = await run(tasks, { retestVerdict: 'PASS' })
+  assert.equal(result.results.length, 2)
+  assert.equal(state.maxActive, 1, 'no declaration = no parallelism')
+  assert.ok(prompts.filter(p => p.label.startsWith('impl:')).every(p => !p.prompt.includes('IN PARALLEL')), 'a sequential task is not told it runs in parallel')
+  assert.deepEqual(result.stageOverlap, [], 'sequential tasks sharing a file is not a parallel violation')
+})
+
+test('pre-hoc guard: overlapping declarations run sequentially', async () => {
+  const tasks = [
+    { id: 'T1', title: 't1', brief: 'b1', agentType: 'codeswarm:x', stage: 's', files: ['a.js'] },
+    { id: 'T2', title: 't2', brief: 'b2', agentType: 'codeswarm:x', stage: 's', files: ['./a.js'] },
+  ]
+  const { state } = await run(tasks, { retestVerdict: 'PASS' })
+  assert.equal(state.maxActive, 1)
 })

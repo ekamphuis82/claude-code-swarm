@@ -473,7 +473,20 @@ Where the evidence for the claims in this README actually stands:
   often ran their claims with `node`, but reading-only finders did no worse:
   at this tier the finders simply see through these lures. That is not
   evidence against verify; it is evidence that these fixtures cannot measure
-  it at the current finder tier. Independent checks catching
+  it at the current finder tier.
+- **First real-code data point, and it is against the layer:** the same day,
+  a full-rigor bugs + security review of a private 34-file Vue 3 / Quasar
+  app produced 29 findings. A blind grader (an Opus 5.5 agent that saw only
+  the raw findings — not a human) marked 27 real and 2 false; the two false
+  ones were re-checked by hand against the bundler source and are false.
+  The verify layer confirmed all 29: it killed nothing, wrongly rejected
+  nothing, and confirmed both false positives at critical — one after the
+  severity check had raised it from major. Both lenses built a confident
+  static trace through the framework's env handling and missed the bundler
+  rule that makes the claimed crash impossible. Verify was 275k of the run's
+  345k output tokens. One run, one repo, a model grader: an anecdote, but
+  the only real-code one there is, and it says the finder was precise
+  (27/29) and the verify layer added no precision. Independent checks catching
   plausible-but-wrong findings is the design bet this plugin is built on, and
   the eval log exists to test that bet — not to presume it. Until the log
   accumulates across VARIED fixtures, read "independently verified findings"

@@ -1,0 +1,38 @@
+{
+  "schema_version": "1.1",
+  "name": "05-resume-run",
+  "tags": [
+    "fire",
+    "resume"
+  ],
+  "context": {},
+  "execution": {
+    "prompt": "De run van gisteravond is gesneuveld op de rate limit, halverwege. Kunnen we verder waar hij gebleven is?",
+    "max_turns": 20,
+    "timeout_seconds": 360,
+    "allowed_tools": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Skill",
+      "Edit",
+      "Write"
+    ]
+  },
+  "runs": 3,
+  "graders": [
+    {
+      "name": "director-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "swarm-director",
+      "min": 1
+    },
+    {
+      "name": "resume-not-redo",
+      "type": "llm",
+      "criteria": "PASS only if the response proposes continuing the interrupted run so that already-finished steps are reused (for example resuming by run id so completed agents replay from cache, using the exact script version the run started with), rather than redoing the work from scratch. It may honestly report that it cannot find an unfinished run and ask for the run id. FAIL if it only offers to redo the task.",
+      "weight": 2
+    }
+  ]
+}

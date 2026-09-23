@@ -1,0 +1,69 @@
+{
+  "schema_version": "1.1",
+  "name": "02-audit-cost",
+  "tags": [
+    "fire",
+    "review",
+    "estimate"
+  ],
+  "context": {
+    "scaffold_script": "scaffold.sh"
+  },
+  "execution": {
+    "prompt": "Before we open this up to external partners I want the whole auth + tenancy surface audited — about 60 files across the API and the admin GUI. What would that cost me and how would you run it?",
+    "max_turns": 20,
+    "timeout_seconds": 420,
+    "allowed_tools": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Skill",
+      "Edit",
+      "Write"
+    ]
+  },
+  "runs": 3,
+  "graders": [
+    {
+      "name": "director-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "swarm-director",
+      "min": 1
+    },
+    {
+      "name": "no-write",
+      "type": "tool_used",
+      "tool": "Write",
+      "min": 0,
+      "max": 0,
+      "arm": "both"
+    },
+    {
+      "name": "no-edit",
+      "type": "tool_used",
+      "tool": "Edit",
+      "min": 0,
+      "max": 0,
+      "arm": "both"
+    },
+    {
+      "name": "estimate-anchored-on-inline",
+      "type": "llm",
+      "criteria": "PASS only if the cost answer is anchored on a baseline of doing the same audit in a single session (inline), and states the multi-agent figure relative to it (a multiplier or a range on both), plus an agent count. A bare absolute token or euro figure without that baseline comparison is a FAIL.",
+      "weight": 2
+    },
+    {
+      "name": "go-no-go-not-launched",
+      "type": "llm",
+      "criteria": "PASS only if the response ends by asking the user for a go/no-go (or which options to pick) and does not claim to have started the audit. FAIL if it says the audit is running or has run.",
+      "weight": 1
+    },
+    {
+      "name": "verify-layer",
+      "type": "llm",
+      "criteria": "PASS only if the proposed approach includes an independent verification step for findings (a separate check that confirms or rejects each finding before it is reported). FAIL if findings go straight from the finder to the report.",
+      "weight": 1
+    }
+  ]
+}

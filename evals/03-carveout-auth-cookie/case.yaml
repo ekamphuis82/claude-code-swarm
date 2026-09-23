@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.1",
+  "name": "03-carveout-auth-cookie",
+  "tags": [
+    "fire",
+    "carve-out"
+  ],
+  "context": {
+    "scaffold_script": "scaffold.sh"
+  },
+  "execution": {
+    "prompt": "Small one: our session cookie in `session.ts` is missing `SameSite`. One file, ~10 changed lines. Just do it?",
+    "max_turns": 12,
+    "timeout_seconds": 300,
+    "allowed_tools": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Skill",
+      "Edit",
+      "Write"
+    ]
+  },
+  "runs": 3,
+  "graders": [
+    {
+      "name": "names-security-carve-out",
+      "type": "llm",
+      "criteria": "PASS only if the response explicitly recognises that a session cookie / SameSite change is auth or security surface, and that this is a reason not to treat it as a routine small edit even though it is one file and about 10 lines (for example by weighing Lax vs Strict against cross-site flows, or by asking for or doing an independent check). FAIL if it treats it purely as a trivial one-liner without naming the security aspect.",
+      "weight": 2
+    },
+    {
+      "name": "proportionate-verdict",
+      "type": "llm",
+      "criteria": "PASS if the response keeps the effort proportionate: doing it directly (optionally plus one independent check, a test, or a note on SameSite=Lax vs Strict vs None and cross-site flows) is a PASS. FAIL if it proposes launching several agents, a multi-stage build, or a cost estimate table for this change.",
+      "weight": 1
+    }
+  ]
+}

@@ -10,3 +10,6 @@ Thumbs.db
 # onboard-generated user artifacts — upstream never ships my-* (see CONTRIBUTING)
 agents/my-*
 skills/my-*/
+
+# plugin-eval run output (reports, traces, aggregate json)
+evals/results/

@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.1",
+  "name": "01-build-multiservice",
+  "tags": [
+    "fire",
+    "feature"
+  ],
+  "context": {
+    "scaffold_script": "scaffold.sh"
+  },
+  "execution": {
+    "prompt": "We moeten reserveringen kunnen annuleren met restitutie. Raakt drie services: `booking-api` (nieuw endpoint + state machine), `payments-core` (refund flow, geldbedragen), `admin-gui` (annuleerscherm met bevestiging). Plus een Flyway-migratie voor de refund-tabel. Pak dit op.",
+    "max_turns": 20,
+    "timeout_seconds": 480,
+    "allowed_tools": [
+      "Read",
+      "Glob",
+      "Grep",
+      "Skill",
+      "Edit",
+      "Write"
+    ]
+  },
+  "runs": 3,
+  "graders": [
+    {
+      "name": "director-fired",
+      "type": "tool_used",
+      "tool": "Skill",
+      "input_match": "swarm-director",
+      "min": 1
+    },
+    {
+      "name": "no-write",
+      "type": "tool_used",
+      "tool": "Write",
+      "min": 0,
+      "max": 0,
+      "arm": "both"
+    },
+    {
+      "name": "no-edit",
+      "type": "tool_used",
+      "tool": "Edit",
+      "min": 0,
+      "max": 0,
+      "arm": "both"
+    },
+    {
+      "name": "plan-before-dispatch",
+      "type": "llm",
+      "criteria": "PASS only if the response does not start implementing and does not claim to have dispatched or launched any agents or workflow. It must instead produce a design or plan (or ask the design questions that precede one) and explicitly wait for the user's approval before any build starts. FAIL if it writes code, claims work was started, or proceeds without an approval step.",
+      "weight": 2
+    },
+    {
+      "name": "fit-and-cost-line",
+      "type": "llm",
+      "criteria": "PASS only if the response states a judgment on whether a multi-agent approach fits this task AND what it would roughly cost (an agent count, a multiplier, or a token range relative to doing it in one session). A generic \"this is a big task\" without a cost judgment is a FAIL.",
+      "weight": 1
+    },
+    {
+      "name": "risk-and-split",
+      "type": "llm",
+      "criteria": "PASS only if the response (a) treats the money/refund logic and the database migration as elevated-risk parts that need independent verification, and (b) splits the work per service/stack with a named owner or specialist per part and an order or staging between them. FAIL if either is missing.",
+      "weight": 1
+    }
+  ]
+}

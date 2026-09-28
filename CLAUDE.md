@@ -11,22 +11,26 @@ node -e "JSON.parse(require('fs').readFileSync('.claude-plugin/plugin.json','utf
 for f in hooks/*.js tools/*.js runner/*.js; do node --check "$f"; done
 node --test workflows/*.test.mjs tools/*.test.mjs runner/*.test.mjs
 sh hooks/hooks.test.sh
-{ [ ! -f .sanitize-terms ] || { git grep -riE --untracked -f .sanitize-terms -- ':!LICENSE' ':!.claude-plugin'; [ $? -eq 1 ]; }; }
+sh tools/sanitize.sh
 ```
 
 On Windows, run in Git Bash. CI additionally lints skill/agent frontmatter
 (`name:` must match dir/filename).
 
-The last line is the sanitize gate (branding rule): `.sanitize-terms` is a
-gitignored, one-regex-per-line term list that must never be committed — when
-the file is absent (CI, forks) the check passes silently. Any hit outside
-the exclusions (LICENSE + manifest attribution, `.claude-plugin` manifests;
-gitignored files like `my-*` are skipped by `git grep` itself) fails the
-gate: fix the leak, never widen the exclusions. It runs on `git grep`
-because msys `grep -f` (Git Bash ships grep 3.0) can abort on the combined
-term list — and the explicit `[ $? -eq 1 ]` means only a genuinely clean
-scan passes: a matching term (exit 0) or a crashed grep (exit >1) both fail
-loud instead of passing silently.
+The last line is the sanitize gate (branding rule, `tools/sanitize.sh`,
+tested by `tools/sanitize.test.mjs`): `.sanitize-terms` is a gitignored,
+one-regex-per-line term list that must never be committed — when the file is
+absent (CI, forks) the check passes silently. Pass 1 scans tracked and
+untracked files outside the exclusions (LICENSE + manifest attribution,
+`.claude-plugin` manifests); pass 2 scans the gitignored local `my-*`
+artifacts that declare `scope: global` in their frontmatter (an agent `.md`,
+or a skill's `SKILL.md`, which covers the whole skill dir minus
+`node_modules`) — `git grep` otherwise skips them. Unmarked `my-*` files are
+project-specific by design and stay unscanned. Any hit fails the gate: fix the leak, never
+widen the exclusions. It runs on `git grep` because msys `grep -f` (Git Bash
+ships grep 3.0) can abort on the combined term list — and only a genuinely
+clean scan (exit 1 on both passes) passes: a matching term (exit 0) or a
+crashed grep (exit >1) both fail loud instead of passing silently.
 
 `node --check` is for hooks, `tools/` and `runner/` only: the workflow
 scripts are Workflow-harness modules (`export const meta` + top-level

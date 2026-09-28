@@ -12,6 +12,25 @@ previous bump, plus the bump itself — and the `v<version>` tag sits on that
 bump commit. Tags for 1.0.0 through 1.3.0 were created retroactively on
 2026-08-17, when this changelog was written.
 
+## [1.6.2] — 2026-09-28
+
+### Changed
+
+- The sanitize gate moved into `tools/sanitize.sh` (the dev-gate line is now
+  `sh tools/sanitize.sh`) and gained an opt-in second pass over gitignored
+  local `my-*` agents and skills whose frontmatter declares `scope: global`
+  (a skill's `SKILL.md` marker covers its whole dir, `node_modules` skipped);
+  unmarked, project-specific `my-*` files stay unscanned. `git grep` used to
+  skip all of them silently. `tools/sanitize.test.mjs` covers both passes,
+  the marker, dir coverage, the exclusions and the fail-loud exit contract.
+- The director launches a local `my-*` skill's own workflow script
+  (`<skill>/workflow/*.js`) through the Workflow tool with `scriptPath`,
+  following that skill's SKILL.md.
+- Doctor's content-sync check excludes `node_modules` from the clone vs
+  installed-copy diff.
+- CONTRIBUTING: pin exact dependency versions in any `package.json`, with
+  the lockfile committed.
+
 ## [1.6.1] — 2026-09-23
 
 ### Fixed

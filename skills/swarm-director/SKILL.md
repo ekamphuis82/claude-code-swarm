@@ -112,7 +112,10 @@ reads as a funnel and gets ignored — gate hard on substantial + poor-fit.
 
 This skill's base directory is announced when the skill loads; the scripts
 live at `../../workflows/` from there. Resolve to an absolute path and pass
-it as `scriptPath` to the Workflow tool.
+it as `scriptPath` to the Workflow tool. A local `my-*` skill that ships its
+own workflow script (`<skill>/workflow/*.js`) is launched the same way — the
+Workflow tool with that absolute `scriptPath` — following that skill's
+SKILL.md for args and steps.
 
 ## Standalone runner (failover — config `runner: "standalone"`)
 

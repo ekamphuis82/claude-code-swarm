@@ -55,8 +55,9 @@ Run in this order. Status per row: OK / FAIL / WARN / SKIP.
    only changes when a release bumps it, so the installed copy can be
    content-stale while the number still matches. Staleness is therefore
    judged by content, not by the version number — compare the trees:
-   `diff -rq -x .git "<clone>" "<installed root>"` (POSIX/git-bash; on
-   PowerShell compare `Get-FileHash` output of both trees, excluding `.git`).
+   `diff -rq -x .git -x node_modules "<clone>" "<installed root>"` (POSIX/git-bash; on
+   PowerShell compare `Get-FileHash` output of both trees, excluding `.git`
+   and `node_modules` — installed dependencies are not plugin content).
    Any differing or missing file: WARN "installed copy is stale", detail
    listing up to 3 differing paths. Fix hint: `git pull` in the clone, then
    `/reload-plugins` (or restart Claude Code).

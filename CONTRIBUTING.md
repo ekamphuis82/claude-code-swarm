@@ -19,15 +19,19 @@ node -e "JSON.parse(require('fs').readFileSync('.claude-plugin/plugin.json','utf
 for f in hooks/*.js tools/*.js runner/*.js; do node --check "$f"; done
 node --test workflows/*.test.mjs tools/*.test.mjs runner/*.test.mjs
 sh hooks/hooks.test.sh
-{ [ ! -f .sanitize-terms ] || { git grep -riE --untracked -f .sanitize-terms -- ':!LICENSE' ':!.claude-plugin'; [ $? -eq 1 ]; }; }
+sh tools/sanitize.sh
 ```
 
 All five must pass (on Windows: run them in Git Bash) — this is the same gate
 `CLAUDE.md` documents. CI runs it on every push, plus a frontmatter lint
 (skill/agent `name:` must match the dir/filename). The last line is the
-sanitize gate: `.sanitize-terms` is a gitignored local term list (one regex
-per line) that never gets committed — absent (CI, forks) means the check
-passes silently; a hit outside the attribution exclusions fails the gate.
+sanitize gate (`tools/sanitize.sh`): `.sanitize-terms` is a gitignored local
+term list (one regex per line) that never gets committed — absent (CI, forks)
+means the check passes silently; a hit outside the attribution exclusions
+fails the gate, and so does a hit in a gitignored local `my-*` agent or skill
+whose frontmatter declares `scope: global` (a skill's marker covers its whole
+dir, `node_modules` excepted); unmarked, project-specific `my-*` files are
+skipped.
 
 Note `node --check` covers the hooks, `tools/` and `runner/` only. The
 workflow scripts are Workflow-harness modules (`export const meta` +
@@ -68,6 +72,8 @@ in the `node --test` step.
   vocabulary defeats pattern matching, measured on this repo — so it is a
   review item. What the test does guarantee is that the documented set
   cannot drift in either direction.
+- **Pin exact dependency versions** in any `package.json` (`"1.2.3"`, never
+  `^`/`~`), with the lockfile committed.
 - **Workflow scripts are plain JS** (the Workflow tool parses no
   TypeScript) and must keep `meta` a pure literal.
 - **Internal workflow markers** go at the END of `meta.description` as

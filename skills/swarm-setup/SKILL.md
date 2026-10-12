@@ -60,7 +60,7 @@ to re-run: a subscription change (raise or drop the top-model cap).
      today and auto-moves to a newer Opus when one ships. Recommended for
      "always use the best Opus" without re-editing config. Use `"sonnet"`
      to cap top-tier cost on a limited subscription.
-   - a **pinned id** — e.g. `"claude-opus-4-8"` / `"claude-opus-4-7"`.
+   - a **pinned id** — e.g. `"claude-opus-5-5"` / `"claude-sonnet-5-5"`.
      Freezes the top tier to that exact version (reproducibility, or
      staying on a version you have validated); it will NOT auto-upgrade.
    Any model name Claude Code accepts is valid. Mechanical/verify tiers are

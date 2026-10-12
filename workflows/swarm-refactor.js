@@ -69,10 +69,10 @@ for (let i = 0; i < disc.sites.length; i += BATCH) {
   const batchNo = i / BATCH + 1
   const batchTotal = Math.ceil(disc.sites.length / BATCH)
   const transformPrompt = `Apply this refactor in repo ${A.repo}: ${A.instruction}\nMechanical, format-preserving; skip (with reason) anything that does not match expectation instead of guessing. Never touch db/migration/.${FENCE('sites in this batch + order constraints', `${batch.map(s => `- ${s.file}: ${s.what}`).join('\n')}\nOrder constraints: ${disc.orderNotes}`)}${QUIET}`
-  let r = await agent(transformPrompt, { label: `transform:${batchNo}`, phase: 'Transform', schema: TRANSFORM, effort: 'low', model: 'haiku' })
+  let r = await agent(transformPrompt, { label: `transform:${batchNo}`, phase: 'Transform', schema: TRANSFORM, effort: 'medium', model: 'haiku' })
   if (!r) {
     log(`batch ${batchNo}/${batchTotal} null — one retry`)
-    r = await agent(transformPrompt, { label: `transform-retry:${batchNo}`, phase: 'Transform', schema: TRANSFORM, effort: 'low', model: 'haiku' })
+    r = await agent(transformPrompt, { label: `transform-retry:${batchNo}`, phase: 'Transform', schema: TRANSFORM, effort: 'medium', model: 'haiku' })
   }
   if (r) { transformed.push(r); log(`batch ${batchNo}/${batchTotal} done`) }
   else {
